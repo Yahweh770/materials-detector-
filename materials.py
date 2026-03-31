@@ -1,3 +1,20 @@
+"""
+Приложение для учёта материалов — Единая база
+Версия: 2.0
+
+Функционал:
+- Добавление, редактирование и удаление записей о материалах
+- Поиск по всем полям записи
+- Экспорт данных в Excel с форматированием
+- Отслеживание просроченных документов
+- Работа с несколькими файлами баз данных
+- Контекстное меню для быстрого доступа к функциям
+- Копирование данных в буфер обмена
+
+Автор: [Ваше имя]
+Дата создания: 2024
+"""
+
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, simpledialog
 import json
@@ -6,8 +23,12 @@ from datetime import datetime, timedelta
 import openpyxl
 from openpyxl import Workbook
 
+
 class MaterialApp:
+    """Основной класс приложения для учёта материалов"""
+    
     def __init__(self, root):
+        """Инициализация приложения"""
         self.root = root
         self.root.title("Учёт материалов — Единая база")
         self.root.geometry("1920x980")
@@ -18,6 +39,8 @@ class MaterialApp:
         self.next_id = 0
         self.today = datetime.now().date()
         self.data_file = self.get_data_file()
+        self.backup_data = None  # Для временного хранения данных при фильтрации
+        self._context_menu_event = None  # Для хранения события контекстного меню
 
         self.load_data()
         
@@ -40,6 +63,8 @@ class MaterialApp:
         menubar.add_cascade(label="Правка", menu=edit_menu)
         edit_menu.add_command(label="Добавить новую строку", command=self.add_new_row)
         edit_menu.add_command(label="Добавить новое поле", command=self.add_new_column)
+        edit_menu.add_separator()
+        edit_menu.add_command(label="Удалить строку", command=self.delete_row)
 
         # ==================== ПАНЕЛЬ ИНСТРУМЕНТОВ ====================
         toolbar = tk.Frame(root, relief="raised", bd=1)
@@ -48,6 +73,12 @@ class MaterialApp:
         tk.Button(toolbar, text="➕ Добавить материал", width=20, height=2, bg="#4CAF50", fg="white",
                   font=("Arial", 10, "bold"), command=self.open_add_material_window).pack(side="left", padx=5)
         
+        tk.Button(toolbar, text="✏️ Редактировать", width=18, height=2, bg="#FF9800", fg="white",
+                  command=self.edit_selected_row).pack(side="left", padx=5)
+        
+        tk.Button(toolbar, text="🗑️ Удалить", width=18, height=2, bg="#f44336", fg="white",
+                  command=self.delete_row).pack(side="left", padx=5)
+        
         tk.Button(toolbar, text="📊 Экспорт в Excel", width=18, height=2, bg="#2196F3", fg="white",
                   command=self.export_to_excel).pack(side="left", padx=5)
         
@@ -55,6 +86,23 @@ class MaterialApp:
                   command=self.change_data_file).pack(side="left", padx=5)
 
         tk.Label(toolbar, text="   ").pack(side="left")  # отступ
+
+        # Поиск
+        tk.Label(toolbar, text="Поиск:", font=("Arial", 10)).pack(side="left", padx=(20, 5))
+        self.search_var = tk.StringVar()
+        self.search_var.trace('w', lambda *args: self.search_data())
+        self.search_entry = tk.Entry(toolbar, textvariable=self.search_var, width=30, font=("Arial", 10))
+        self.search_entry.pack(side="left", padx=5)
+        
+        tk.Button(toolbar, text="🔍 Очистить", width=10, command=self.clear_search).pack(side="left", padx=5)
+        
+        # Контекстное меню для Treeview
+        self.tree_context_menu = tk.Menu(self.root, tearoff=0)
+        self.tree_context_menu.add_command(label="Копировать строку", command=self.copy_row_to_clipboard)
+        self.tree_context_menu.add_command(label="Копировать ячейку", command=lambda: self.copy_cell_to_clipboard(None))
+        self.tree_context_menu.add_separator()
+        self.tree_context_menu.add_command(label="Редактировать", command=self.edit_selected_row)
+        self.tree_context_menu.add_command(label="Удалить", command=self.delete_row)
 
         self.file_label = tk.Label(toolbar, text=f"Файл: {os.path.basename(self.data_file)}", 
                                   font=("Arial", 10, "bold"), fg="blue")
@@ -72,7 +120,11 @@ class MaterialApp:
 
         # Привязки для Treeview
         self.tree.bind("<Double-1>", self.on_double_click)
+        self.tree.bind("<Delete>", self.delete_row)
         self.tree.bind("<Control-c>", self.copy_to_clipboard)
+        
+        # Контекстное меню для Treeview
+        self.tree.bind("<Button-3>", self.show_tree_context_menu)
         
         # Глобальные привязки для работы с буфером обмена (Ctrl+C, Ctrl+V, Ctrl+X)
         self.root.bind("<Control-c>", self.global_copy)
@@ -104,6 +156,115 @@ class MaterialApp:
         self.refresh_tree()
         
         # Обновление информации о просроченных документах
+        self.update_expired_info()
+
+    def show_tree_context_menu(self, event):
+        """Показать контекстное меню для Treeview"""
+        # Выбираем элемент под курсором
+        item = self.tree.identify_row(event.y)
+        if item:
+            self.tree.selection_set(item)
+        
+        # Сохраняем координаты события для использования в copy_cell_to_clipboard
+        self._context_menu_event = event
+        
+        # Показываем меню
+        self.tree_context_menu.tk_popup(event.x_root, event.y_root)
+
+    def copy_row_to_clipboard(self):
+        """Копирование всей строки в буфер обмена"""
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("Внимание", "Выберите строку для копирования!")
+            return
+        
+        item = self.tree.item(selection[0])
+        values = item['values']
+        cols = self.tree["columns"]
+        
+        # Формируем строку с заголовками
+        header_row = '\t'.join(str(col) for col in cols)
+        data_row = '\t'.join(str(v) for v in values)
+        text_to_copy = f"{header_row}\n{data_row}"
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text_to_copy)
+        messagebox.showinfo("Успешно", "Строка скопирована в буфер обмена!")
+
+    def copy_cell_to_clipboard(self, event=None):
+        """Копирование содержимого конкретной ячейки в буфер обмена"""
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("Внимание", "Выберите строку!")
+            return
+        
+        item = self.tree.item(selection[0])
+        values = item['values']
+        
+        # Пытаемся получить координаты из сохраненного события контекстного меню
+        selected_value = None
+        evt = event if event else getattr(self, '_context_menu_event', None)
+        
+        if evt and hasattr(evt, 'x') and hasattr(evt, 'y'):
+            # Определяем колонку по координатам клика
+            region = self.tree.identify_region(evt.x, evt.y)
+            if region == 'cell':
+                col_id = self.tree.identify_column(evt.x)
+                if col_id:
+                    # Получаем индекс колонки (формат: #N где N - номер)
+                    try:
+                        col_index = int(col_id[1:]) - 1
+                        if 0 <= col_index < len(values):
+                            selected_value = values[col_index]
+                    except (ValueError, IndexError):
+                        pass
+        
+        # Если не удалось определить конкретную ячейку, копируем первое значение
+        if selected_value is None and values:
+            selected_value = values[0]
+        
+        if selected_value is not None:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(str(selected_value))
+            messagebox.showinfo("Успешно", f"Ячейка скопирована: {selected_value}")
+        else:
+            messagebox.showwarning("Внимание", "Нет данных для копирования!")
+
+    def search_data(self):
+        """Поиск данных по введенному тексту"""
+        search_text = self.search_var.get().lower().strip()
+        
+        if not search_text:
+            self.refresh_tree()
+            return
+        
+        # Очищаем текущее отображение
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+        
+        # Ищем совпадения во всех полях
+        for row in self.data:
+            match = False
+            for key, value in row.items():
+                if str(value).lower().find(search_text) >= 0:
+                    match = True
+                    break
+            
+            if match:
+                values = [row.get(col, "") for col in self.tree["columns"]]
+                self.tree.insert("", "end", values=values)
+        
+        # Обновляем информацию о количестве найденных записей
+        found_count = self.tree.get_children()
+        if len(found_count) == 0:
+            self.expired_label.config(text=f"🔍 Ничего не найдено по запросу: {search_text}")
+        else:
+            self.expired_label.config(text=f"🔍 Найдено записей: {len(found_count)}")
+
+    def clear_search(self):
+        """Очистка поиска и отображение всех данных"""
+        self.search_var.set("")
+        self.refresh_tree()
         self.update_expired_info()
 
     # ==================== ОКНО ДОБАВЛЕНИЯ НОВОГО МАТЕРИАЛА ====================
@@ -433,6 +594,71 @@ class MaterialApp:
     def add_new_column(self):
         """Добавление нового поля через меню"""
         self.add_new_column_from_window()
+
+    def edit_selected_row(self):
+        """Редактирование выбранной строки"""
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("Внимание", "Выберите строку для редактирования!")
+            return
+        
+        item = self.tree.item(selection[0])
+        values = item['values']
+        
+        # Находим соответствующую запись в данных
+        cols = self.tree["columns"]
+        record = {}
+        for i, col in enumerate(cols):
+            if i < len(values):
+                record[col] = values[i]
+        
+        # Добавляем ID если есть
+        for row in self.data:
+            match = True
+            for col in cols:
+                if row.get(col, "") != record.get(col, ""):
+                    match = False
+                    break
+            if match:
+                record['id'] = row.get('id')
+                break
+        
+        self.edit_record(record)
+
+    def delete_row(self, event=None):
+        """Удаление выбранной строки"""
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("Внимание", "Выберите строку для удаления!")
+            return
+        
+        if not messagebox.askyesno("Подтверждение", "Вы действительно хотите удалить выбранную строку?"):
+            return
+        
+        item = self.tree.item(selection[0])
+        values = item['values']
+        
+        # Находим соответствующую запись в данных
+        cols = self.tree["columns"]
+        record = {}
+        for i, col in enumerate(cols):
+            if i < len(values):
+                record[col] = values[i]
+        
+        # Удаляем из данных
+        for i, row in enumerate(self.data):
+            match = True
+            for col in cols:
+                if row.get(col, "") != record.get(col, ""):
+                    match = False
+                    break
+            if match:
+                del self.data[i]
+                break
+        
+        self.refresh_tree()
+        self.save_data()
+        messagebox.showinfo("Успешно", "Строка удалена!")
 
     def on_double_click(self, event):
         """Обработка двойного клика по строке"""
@@ -795,5 +1021,12 @@ class MaterialApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
+    
+    # Установка иконки приложения (если доступна)
+    try:
+        root.iconbitmap(default='icon.ico')
+    except:
+        pass
+    
     app = MaterialApp(root)
     root.mainloop()
