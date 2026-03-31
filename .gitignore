@@ -1,41 +1,4 @@
 ```
-# Python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Logs and temporary files
-*.log
-*.tmp
-
-# Dependencies
-venv/
-.venv/
-node_modules/
-
-# Build artifacts
-dist/
-build/
-target/
-
-# Editors
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# OS
-.DS_Store
-Thumbs.db
 ```
