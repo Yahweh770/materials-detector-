@@ -1,10 +1,11 @@
 """
 Приложение для учёта материалов — Единая база
-Версия: 2.0
+Версия: 2.1
 
 Функционал:
 - Добавление, редактирование и удаление записей о материалах
 - Поиск по всем полям записи
+- Импорт данных из Excel для быстрого обновления большого массива материалов
 - Экспорт данных в Excel с форматированием
 - Отслеживание просроченных документов
 - Работа с несколькими файлами баз данных
@@ -55,6 +56,7 @@ class MaterialApp:
         file_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Файл", menu=file_menu)
         file_menu.add_command(label="Сменить файл базы", command=self.change_data_file)
+        file_menu.add_command(label="Импорт из Excel", command=self.import_from_excel)
         file_menu.add_command(label="Экспорт в Excel", command=self.export_to_excel)
         file_menu.add_separator()
         file_menu.add_command(label="Выход", command=self.on_close)
@@ -81,6 +83,9 @@ class MaterialApp:
         
         tk.Button(toolbar, text="📊 Экспорт в Excel", width=18, height=2, bg="#2196F3", fg="white",
                   command=self.export_to_excel).pack(side="left", padx=5)
+        
+        tk.Button(toolbar, text="📥 Импорт из Excel", width=18, height=2, bg="#009688", fg="white",
+                  command=self.import_from_excel).pack(side="left", padx=5)
         
         tk.Button(toolbar, text="🔄 Сменить базу", width=18, height=2, bg="#9C27B0", fg="white",
                   command=self.change_data_file).pack(side="left", padx=5)
@@ -588,6 +593,165 @@ class MaterialApp:
             messagebox.showinfo("Успешно", f"Данные успешно экспортированы в:\n{file_path}\n\nЭкспортировано записей: {total_rows}")
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось экспортировать данные:\n{e}")
+
+    def import_from_excel(self):
+        """Импорт данных из Excel файла"""
+        file_path = filedialog.askopenfilename(
+            title="Выберите Excel файл для импорта",
+            defaultextension=".xlsx",
+            filetypes=[("Excel файл", "*.xlsx"), ("Excel 97-2003", "*.xls")]
+        )
+        
+        if not file_path:
+            return
+        
+        try:
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            ws = wb.active
+            
+            # Получаем заголовки из первой строки
+            headers = []
+            for col in range(1, ws.max_column + 1):
+                cell_value = ws.cell(row=1, column=col).value
+                if cell_value:
+                    # Преобразуем русские названия в ключи
+                    key = self._header_to_key(str(cell_value))
+                    headers.append(key)
+                else:
+                    headers.append(None)
+            
+            if not any(headers):
+                messagebox.showwarning("Внимание", "Не найдено заголовков в файле!")
+                return
+            
+            # Создаем обратный маппинг русских названий
+            reverse_russian_names = {
+                "№ п/п": "id",
+                "Производитель": "manufacturer", 
+                "Вид материала": "material_type",
+                "Паспорт №": "passport_num", 
+                "Дата производства": "production_date",
+                "Срок хранения": "shelf_life", 
+                "Сертификат №": "cert_num",
+                "Дата выдачи сертификата": "cert_issue_date",
+                "Дата выдачи": "cert_issue_date",
+                "Дата окончания сертификата": "cert_exp_date",
+                "Протокол №": "lab_protocol_num", 
+                "Дата протокола": "lab_protocol_date",
+                "Акт отбора №": "sample_act_num", 
+                "Дата акта": "sample_act_date"
+            }
+            
+            # Заменяем ключи на соответствующие русским названиям
+            for i, header in enumerate(headers):
+                if header and header in reverse_russian_names:
+                    headers[i] = reverse_russian_names[header]
+            
+            # Пропускаем первую строку (заголовки) и читаем данные
+            imported_count = 0
+            updated_count = 0
+            added_count = 0
+            
+            for row_idx in range(2, ws.max_row + 1):
+                row_data = {}
+                has_data = False
+                
+                for col_idx, key in enumerate(headers, 1):
+                    if key is None:
+                        continue
+                    
+                    cell_value = ws.cell(row=row_idx, column=col_idx).value
+                    if cell_value is not None and str(cell_value).strip():
+                        row_data[key] = str(cell_value).strip()
+                        has_data = True
+                
+                if not has_data:
+                    continue
+                
+                # Пытаемся найти существующую запись по id или по производителю + виду материала
+                existing_idx = None
+                if 'id' in row_data:
+                    try:
+                        record_id = int(row_data['id'])
+                        for i, item in enumerate(self.data):
+                            if item.get('id') == record_id:
+                                existing_idx = i
+                                break
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Если не нашли по id, пробуем по производителю и виду материала
+                if existing_idx is None and 'manufacturer' in row_data and 'material_type' in row_data:
+                    for i, item in enumerate(self.data):
+                        if (item.get('manufacturer') == row_data['manufacturer'] and 
+                            item.get('material_type') == row_data['material_type']):
+                            existing_idx = i
+                            break
+                
+                if existing_idx is not None:
+                    # Обновляем существующую запись
+                    for key, value in row_data.items():
+                        self.data[existing_idx][key] = value
+                    updated_count += 1
+                else:
+                    # Добавляем новую запись
+                    if 'id' not in row_data:
+                        row_data['id'] = self.next_id
+                        self.next_id += 1
+                    self.data.append(row_data)
+                    added_count += 1
+                
+                imported_count += 1
+            
+            # Сохраняем изменения
+            self.save_data()
+            self.refresh_columns()
+            self.refresh_tree()
+            self.update_expired_info()
+            
+            msg = f"Импорт завершон!\n\nЗаписей обработано: {imported_count}\nДобавлено: {added_count}\nОбновлено: {updated_count}"
+            messagebox.showinfo("Успешно", msg)
+            
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось импортировать данные:\n{e}")
+    
+    def _header_to_key(self, header):
+        """Преобразование заголовка Excel в ключ данных"""
+        header = header.strip().lower()
+        
+        # Маппинг русских названий в ключи
+        mapping = {
+            "№ п/п": "id",
+            "производитель": "manufacturer", 
+            "вид материала": "material_type",
+            "паспорт №": "passport_num", 
+            "паспорт": "passport_num",
+            "дата производства": "production_date",
+            "срок хранения": "shelf_life", 
+            "сертификат №": "cert_num",
+            "сертификат": "cert_num",
+            "дата выдачи сертификата": "cert_issue_date",
+            "дата выдачи": "cert_issue_date",
+            "дата окончания сертификата": "cert_exp_date",
+            "протокол №": "lab_protocol_num",
+            "протокол": "lab_protocol_num",
+            "дата протокола": "lab_protocol_date",
+            "акт отбора №": "sample_act_num",
+            "акт отбора": "sample_act_num",
+            "дата акта": "sample_act_date"
+        }
+        
+        # Проверяем точное совпадение
+        if header in mapping:
+            return mapping[header]
+        
+        # Проверяем частичное совпадение
+        for key_header, key_value in mapping.items():
+            if key_header in header or header in key_header:
+                return key_value
+        
+        # Если не нашли, преобразуем в формат ключа
+        return header.replace(" ", "_").replace(":", "_").replace("/", "_")
 
     def change_data_file(self):
         """Смена файла базы данных"""
