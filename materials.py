@@ -84,6 +84,9 @@ class MaterialApp:
         
         tk.Button(toolbar, text="🔄 Сменить базу", width=18, height=2, bg="#9C27B0", fg="white",
                   command=self.change_data_file).pack(side="left", padx=5)
+        
+        tk.Button(toolbar, text="💾 Обновить базу", width=18, height=2, bg="#00BCD4", fg="white",
+                  command=self.refresh_database).pack(side="left", padx=5)
 
         tk.Label(toolbar, text="   ").pack(side="left")  # отступ
 
@@ -587,6 +590,19 @@ class MaterialApp:
             self.file_label.config(text=f"Файл: {os.path.basename(self.data_file)}")
             messagebox.showinfo("Успешно", "База данных успешно изменена!")
 
+    def refresh_database(self):
+        """Обновление базы материалов - синхронизация изменений"""
+        self.load_data()
+        if self.data:
+            self.next_id = max(item.get('id', 0) for item in self.data) + 1
+        else:
+            self.next_id = 0
+        self.refresh_columns()
+        self.refresh_tree()
+        self.update_expired_info()
+        self.clear_search()
+        messagebox.showinfo("Успешно", f"База данных обновлена! Загружено записей: {len(self.data)}")
+
     def add_new_row(self):
         """Добавление новой строки через меню"""
         self.open_add_material_window()
@@ -638,27 +654,43 @@ class MaterialApp:
         item = self.tree.item(selection[0])
         values = item['values']
         
-        # Находим соответствующую запись в данных
+        # Находим соответствующую запись в данных по ID
         cols = self.tree["columns"]
         record = {}
         for i, col in enumerate(cols):
             if i < len(values):
                 record[col] = values[i]
         
-        # Удаляем из данных
+        # Пытаемся найти по ID (если он есть в записи)
+        deleted = False
         for i, row in enumerate(self.data):
-            match = True
-            for col in cols:
-                if row.get(col, "") != record.get(col, ""):
-                    match = False
+            if 'id' in row and 'id' in record:
+                if row['id'] == record['id']:
+                    del self.data[i]
+                    deleted = True
                     break
-            if match:
-                del self.data[i]
-                break
         
+        # Если не нашли по ID, ищем по совпадению всех полей
+        if not deleted:
+            for i, row in enumerate(self.data):
+                match = True
+                for col in cols:
+                    if str(row.get(col, "")) != str(record.get(col, "")):
+                        match = False
+                        break
+                if match:
+                    del self.data[i]
+                    deleted = True
+                    break
+        
+        # Обновляем таблицу и сохраняем данные
         self.refresh_tree()
         self.save_data()
-        messagebox.showinfo("Успешно", "Строка удалена!")
+        
+        if deleted:
+            messagebox.showinfo("Успешно", "Строка удалена!")
+        else:
+            messagebox.showerror("Ошибка", "Не удалось найти строку для удаления!")
 
     def on_double_click(self, event):
         """Обработка двойного клика по строке"""
