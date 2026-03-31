@@ -263,6 +263,12 @@ class MaterialApp:
             self.expired_label.config(text=f"🔍 Ничего не найдено по запросу: {search_text}")
         else:
             self.expired_label.config(text=f"🔍 Найдено записей: {len(found_count)}")
+        
+        # Если был активен фильтр просроченных документов, обновляем backup_data
+        if hasattr(self, 'backup_data') and self.backup_data:
+            self.backup_data = [row for row in self.data 
+                               if any(str(value).lower().find(search_text) >= 0 
+                                     for key, value in row.items())]
 
     def clear_search(self):
         """Очистка поиска и отображение всех данных"""
@@ -355,9 +361,16 @@ class MaterialApp:
                 new_item[key] = entry.get().strip()
 
             self.data.append(new_item)
+            
+            # Сохраняем данные сразу после добавления
+            self.save_data()
+            
+            # Обновляем backup_data если был активен фильтр
+            if hasattr(self, 'backup_data') and self.backup_data:
+                self.backup_data = self.data.copy()
+            
             self.refresh_columns()
             self.refresh_tree()
-            self.save_data()
             win.destroy()
             messagebox.showinfo("Успешно", "Новый материал добавлен!")
 
@@ -378,6 +391,13 @@ class MaterialApp:
         for item in self.data:
             item[key] = ""
 
+        # Сохраняем данные сразу после добавления нового поля
+        self.save_data()
+        
+        # Обновляем backup_data если был активен фильтр
+        if hasattr(self, 'backup_data') and self.backup_data:
+            self.backup_data = self.data.copy()
+        
         self.refresh_columns()
         self.refresh_tree()
         messagebox.showinfo("Добавлено", f"Поле «{name}» добавлено во все записи.")
@@ -683,9 +703,16 @@ class MaterialApp:
                     deleted = True
                     break
         
-        # Обновляем таблицу и сохраняем данные
-        self.refresh_tree()
+        # Сохраняем данные сразу после удаления
         self.save_data()
+        
+        # Обновляем таблицу и восстанавливаем полный список если был фильтр
+        if hasattr(self, 'backup_data') and self.backup_data:
+            # Если был активен фильтр просроченных документов, обновляем backup_data
+            self.backup_data = self.data.copy()
+        
+        self.refresh_columns()
+        self.refresh_tree()
         
         if deleted:
             messagebox.showinfo("Успешно", "Строка удалена!")
@@ -783,8 +810,15 @@ class MaterialApp:
                         row[key] = entry.get().strip()
                     break
             
-            self.refresh_tree()
+            # Сохраняем данные сразу после редактирования
             self.save_data()
+            
+            # Обновляем backup_data если был активен фильтр
+            if hasattr(self, 'backup_data') and self.backup_data:
+                self.backup_data = self.data.copy()
+            
+            self.refresh_columns()
+            self.refresh_tree()
             win.destroy()
             messagebox.showinfo("Успешно", "Запись обновлена!")
 
@@ -1045,6 +1079,8 @@ class MaterialApp:
         else:
             self.refresh_columns()
             self.refresh_tree()
+            # Если не было backup_data, просто обновляем информацию о просроченных
+            self.update_expired_info()
 
     def on_close(self):
         self.save_data()
