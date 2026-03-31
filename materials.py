@@ -1,6 +1,6 @@
 """
 Приложение для учёта материалов — Единая база
-Версия: 2.1
+Версия: 2.2
 
 Функционал:
 - Добавление, редактирование и удаление записей о материалах
@@ -11,6 +11,7 @@
 - Работа с несколькими файлами баз данных
 - Контекстное меню для быстрого доступа к функциям
 - Копирование данных в буфер обмена
+- Автоматическое фильтрование по типам материалов (Термопластик/ТП, Холодный пластик/ХП, Краска, Микростеклошарики/МСШ)
 
 Автор: [Ваше имя]
 Дата создания: 2024
@@ -94,6 +95,19 @@ class MaterialApp:
                   command=self.refresh_database).pack(side="left", padx=5)
 
         tk.Label(toolbar, text="   ").pack(side="left")  # отступ
+
+        # Фильтр по типу материала
+        tk.Label(toolbar, text="Тип материала:", font=("Arial", 10)).pack(side="left", padx=(20, 5))
+        self.material_type_var = tk.StringVar()
+        self.material_type_var.set("Все типы")
+        material_types = ["Все типы", "Термопластик", "ТП белый", "ТП желтый", "ТП оранжевый", 
+                         "Холодный пластик", "ХП", "ХП белый", "ХП желтый", 
+                         "Краска", "Краска белая", "Краска черная", "Краска желтая",
+                         "Микростеклошарики", "МСШ"]
+        self.material_type_combo = ttk.Combobox(toolbar, textvariable=self.material_type_var, 
+                                                 values=material_types, width=20, state="readonly", font=("Arial", 10))
+        self.material_type_combo.pack(side="left", padx=5)
+        self.material_type_combo.bind("<<ComboboxSelected>>", lambda *args: self.search_data())
 
         # Поиск
         tk.Label(toolbar, text="Поиск:", font=("Arial", 10)).pack(side="left", padx=(20, 5))
@@ -239,10 +253,11 @@ class MaterialApp:
             messagebox.showwarning("Внимание", "Нет данных для копирования!")
 
     def search_data(self):
-        """Поиск данных по введенному тексту"""
+        """Поиск данных по введенному тексту и фильтру типа материала"""
         search_text = self.search_var.get().lower().strip()
+        material_type_filter = self.material_type_var.get()
         
-        if not search_text:
+        if not search_text and material_type_filter == "Все типы":
             self.refresh_tree()
             return
         
@@ -250,24 +265,68 @@ class MaterialApp:
         for item in self.tree.get_children():
             self.tree.delete(item)
         
-        # Ищем совпадения во всех полях
+        # Ищем совпадения во всех полях с учетом фильтра типа материала
         for row in self.data:
-            match = False
-            for key, value in row.items():
-                if str(value).lower().find(search_text) >= 0:
-                    match = True
-                    break
+            # Проверка фильтра по типу материала
+            type_match = True
+            if material_type_filter != "Все типы":
+                material_type_value = str(row.get("material_type", "")).lower()
+                
+                # Логика сопоставления типов материалов
+                if material_type_filter == "Термопластик":
+                    type_match = "термопластик" in material_type_value or "тп " in material_type_value or material_type_value.startswith("тп")
+                elif material_type_filter == "ТП белый":
+                    type_match = ("тп" in material_type_value or "термопластик" in material_type_value) and "белый" in material_type_value
+                elif material_type_filter == "ТП желтый":
+                    type_match = ("тп" in material_type_value or "термопластик" in material_type_value) and "желтый" in material_type_value
+                elif material_type_filter == "ТП оранжевый":
+                    type_match = ("тп" in material_type_value or "термопластик" in material_type_value) and "оранжевый" in material_type_value
+                elif material_type_filter == "Холодный пластик":
+                    type_match = "холодный пластик" in material_type_value or "хп " in material_type_value or material_type_value.startswith("хп")
+                elif material_type_filter == "ХП":
+                    type_match = "хп" in material_type_value or "холодный пластик" in material_type_value
+                elif material_type_filter == "ХП белый":
+                    type_match = ("хп" in material_type_value or "холодный пластик" in material_type_value) and "белый" in material_type_value
+                elif material_type_filter == "ХП желтый":
+                    type_match = ("хп" in material_type_value or "холодный пластик" in material_type_value) and "желтый" in material_type_value
+                elif material_type_filter == "Краска":
+                    type_match = "краска" in material_type_value
+                elif material_type_filter == "Краска белая":
+                    type_match = "краска" in material_type_value and "белая" in material_type_value
+                elif material_type_filter == "Краска черная":
+                    type_match = "краска" in material_type_value and "черная" in material_type_value
+                elif material_type_filter == "Краска желтая":
+                    type_match = "краска" in material_type_value and "желтая" in material_type_value
+                elif material_type_filter == "Микростеклошарики":
+                    type_match = "микростеклошарики" in material_type_value or "мсш" in material_type_value
+                elif material_type_filter == "МСШ":
+                    type_match = "мсш" in material_type_value or "микростеклошарики" in material_type_value
             
-            if match:
+            if not type_match:
+                continue
+            
+            # Проверка поиска по тексту
+            text_match = False
+            if not search_text:
+                text_match = True
+            else:
+                for key, value in row.items():
+                    if str(value).lower().find(search_text) >= 0:
+                        text_match = True
+                        break
+            
+            if text_match:
                 values = [row.get(col, "") for col in self.tree["columns"]]
                 self.tree.insert("", "end", values=values)
         
         # Обновляем информацию о количестве найденных записей
         found_count = self.tree.get_children()
         if len(found_count) == 0:
-            self.expired_label.config(text=f"🔍 Ничего не найдено по запросу: {search_text}")
+            filter_info = f" (тип: {material_type_filter})" if material_type_filter != "Все типы" else ""
+            self.expired_label.config(text=f"🔍 Ничего не найдено по запросу: {search_text}{filter_info}")
         else:
-            self.expired_label.config(text=f"🔍 Найдено записей: {len(found_count)}")
+            filter_info = f" (тип: {material_type_filter})" if material_type_filter != "Все типы" else ""
+            self.expired_label.config(text=f"🔍 Найдено записей: {len(found_count)}{filter_info}")
         
         # Если был активен фильтр просроченных документов, обновляем backup_data
         if hasattr(self, 'backup_data') and self.backup_data:
@@ -278,6 +337,7 @@ class MaterialApp:
     def clear_search(self):
         """Очистка поиска и отображение всех данных"""
         self.search_var.set("")
+        self.material_type_var.set("Все типы")
         self.refresh_tree()
         self.update_expired_info()
 
