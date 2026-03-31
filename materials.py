@@ -492,6 +492,14 @@ class MaterialApp:
             entry.grid(row=i, column=1, padx=10, pady=6)
             entry.insert(0, record.get(key, ""))
             entries[key] = entry
+            
+            # Добавляем локальные привязки для копирования/вставки
+            entry.bind("<Control-c>", lambda e: e.widget.event_generate('<<Copy>>'))
+            entry.bind("<Control-v>", lambda e: e.widget.event_generate('<<Paste>>'))
+            entry.bind("<Control-x>", lambda e: e.widget.event_generate('<<Cut>>'))
+            
+            # Добавляем контекстное меню по правой кнопке
+            entry.bind("<Button-3>", lambda e: self.show_context_menu(e))
 
         # Добавляем дополнительные поля
         extra_fields = [k for k in self.tree["columns"] if k not in [f[1] for f in fields]]
@@ -502,6 +510,12 @@ class MaterialApp:
             entry.grid(row=i, column=1, padx=10, pady=6)
             entry.insert(0, record.get(key, ""))
             entries[key] = entry
+            
+            # Добавляем локальные привязки для копирования/вставки
+            entry.bind("<Control-c>", lambda e: e.widget.event_generate('<<Copy>>'))
+            entry.bind("<Control-v>", lambda e: e.widget.event_generate('<<Paste>>'))
+            entry.bind("<Control-x>", lambda e: e.widget.event_generate('<<Cut>>'))
+            entry.bind("<Button-3>", lambda e: self.show_context_menu(e))
 
         def save_changes():
             record_id = record.get('id')
@@ -518,6 +532,19 @@ class MaterialApp:
 
         tk.Button(win, text="💾 Сохранить изменения", width=20, height=2, bg="#4CAF50", fg="white",
                  command=save_changes).pack(pady=20)
+                 
+        # Делаем окно активным и передаем фокус первому полю
+        win.focus_set()
+        if entries:
+            list(entries.values())[0].focus_set()
+    
+    def show_context_menu(self, event):
+        """Показать контекстное меню для текстовых полей"""
+        menu = tk.Menu(self.root, tearoff=0)
+        menu.add_command(label="Копировать", command=lambda: event.widget.event_generate('<<Copy>>'))
+        menu.add_command(label="Вставить", command=lambda: event.widget.event_generate('<<Paste>>'))
+        menu.add_command(label="Вырезать", command=lambda: event.widget.event_generate('<<Cut>>'))
+        menu.tk_popup(event.x_root, event.y_root)
 
     def copy_to_clipboard(self, event):
         """Копирование выделенной ячейки в Treeview"""
