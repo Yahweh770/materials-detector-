@@ -70,11 +70,15 @@ class MaterialApp:
         self.tree.pack(side="left", fill="both", expand=True, padx=10, pady=5)
         scrollbar.pack(side="right", fill="y", padx=(0,10), pady=5)
 
-        # Привязки
+        # Привязки для Treeview
         self.tree.bind("<Double-1>", self.on_double_click)
         self.tree.bind("<Control-c>", self.copy_to_clipboard)
-        self.tree.bind("<Control-v>", self.paste_from_clipboard)
-
+        
+        # Глобальные привязки для работы с буфером обмена (Ctrl+C, Ctrl+V, Ctrl+X)
+        self.root.bind("<Control-c>", self.global_copy)
+        self.root.bind("<Control-v>", self.global_paste)
+        self.root.bind("<Control-x>", self.global_cut)
+        
         # ==================== НИЖНЯЯ ПАНЕЛЬ ====================
         bottom_frame = tk.Frame(root, relief="sunken", bd=1)
         bottom_frame.pack(fill="x", padx=10, pady=8)
@@ -83,10 +87,24 @@ class MaterialApp:
                  bg="#2E7D32", fg="white", font=("Arial", 10, "bold"),
                  command=lambda: self.save_data(show_msg=True)).pack(side="left", padx=10)
 
+        # Индикатор просроченных документов
+        self.expired_label = tk.Label(bottom_frame, text="", font=("Arial", 10, "bold"), fg="red")
+        self.expired_label.pack(side="left", padx=20)
+
+        tk.Button(bottom_frame, text="⚠️ Просроченные документы", width=25, height=2,
+                 bg="#FF5722", fg="white", font=("Arial", 10, "bold"),
+                 command=self.show_expired_documents).pack(side="left", padx=10)
+
+        tk.Button(bottom_frame, text="🔄 Показать все", width=15, height=2,
+                 command=self.show_all_documents).pack(side="left", padx=5)
+
         tk.Button(bottom_frame, text="🚪 Выход", width=15, height=2, bg="#f44336", fg="white",
                  command=self.on_close).pack(side="right", padx=10)
 
         self.refresh_tree()
+        
+        # Обновление информации о просроченных документах
+        self.update_expired_info()
 
     # ==================== ОКНО ДОБАВЛЕНИЯ НОВОГО МАТЕРИАЛА ====================
     def open_add_material_window(self):
@@ -237,8 +255,14 @@ class MaterialApp:
     def save_data(self, show_msg=False):
         """Сохранение данных в JSON файл"""
         try:
+            # Очищаем временные поля перед сохранением
+            data_to_save = []
+            for item in self.data:
+                item_copy = {k: v for k, v in item.items() if not k.startswith('_')}
+                data_to_save.append(item_copy)
+            
             with open(self.data_file, "w", encoding="utf-8") as f:
-                json.dump(self.data, f, ensure_ascii=False, indent=2)
+                json.dump(data_to_save, f, ensure_ascii=False, indent=2)
             if show_msg:
                 messagebox.showinfo("Успешно", "Данные успешно сохранены!")
         except Exception as e:
@@ -496,7 +520,7 @@ class MaterialApp:
                  command=save_changes).pack(pady=20)
 
     def copy_to_clipboard(self, event):
-        """Копирование выделенной ячейки"""
+        """Копирование выделенной ячейки в Treeview"""
         selection = self.tree.selection()
         if not selection:
             return
@@ -509,9 +533,233 @@ class MaterialApp:
             self.root.clipboard_clear()
             self.root.clipboard_append(str(values[0]))
 
+    def global_copy(self, event):
+        """Глобальное копирование из любого текстового поля или Treeview"""
+        # Проверяем, есть ли фокус на Entry или Text виджете
+        focus_widget = self.root.focus_get()
+        
+        if focus_widget:
+            widget_type = type(focus_widget).__name__
+            
+            # Если фокус на Entry или Text - используем стандартное копирование
+            if widget_type in ['Entry', 'Text', 'Spinbox']:
+                try:
+                    focus_widget.event_generate('<<Copy>>')
+                    return
+                except:
+                    pass
+            
+            # Если фокус на Treeview - копируем выделенную строку
+            if isinstance(focus_widget, ttk.Treeview):
+                selection = self.tree.selection()
+                if selection:
+                    item = self.tree.item(selection[0])
+                    values = item['values']
+                    if values:
+                        # Копируем все значения строки, разделённые табуляцией
+                        text_to_copy = '\t'.join(str(v) for v in values)
+                        self.root.clipboard_clear()
+                        self.root.clipboard_append(text_to_copy)
+                        return
+
+    def global_paste(self, event):
+        """Глобальная вставка в любое текстовое поле или активную ячейку"""
+        focus_widget = self.root.focus_get()
+        
+        if focus_widget:
+            widget_type = type(focus_widget).__name__
+            
+            # Если фокус на Entry или Text - используем стандартную вставку
+            if widget_type in ['Entry', 'Text', 'Spinbox']:
+                try:
+                    focus_widget.event_generate('<<Paste>>')
+                    return
+                except:
+                    pass
+            
+            # Если фокус на Treeview - показываем сообщение
+            if isinstance(focus_widget, ttk.Treeview):
+                messagebox.showinfo("Инфо", 
+                    "Для вставки данных в таблицу:\n"
+                    "1. Дважды кликните на ячейку для редактирования\n"
+                    "2. Используйте Ctrl+V в окне редактирования")
+                return
+
+    def global_cut(self, event):
+        """Глобальное вырезание из любого текстового поля"""
+        focus_widget = self.root.focus_get()
+        
+        if focus_widget:
+            widget_type = type(focus_widget).__name__
+            
+            # Если фокус на Entry или Text - используем стандартное вырезание
+            if widget_type in ['Entry', 'Text', 'Spinbox']:
+                try:
+                    focus_widget.event_generate('<<Cut>>')
+                    return
+                except:
+                    pass
+
     def paste_from_clipboard(self, event):
-        """Вставка из буфера обмена (заглушка)"""
-        messagebox.showinfo("Инфо", "Функция вставки в разработке")
+        """Вставка из буфера обмена (заглушка - теперь используется global_paste)"""
+        self.global_paste(event)
+
+    def update_expired_info(self):
+        """Обновление информации о просроченных документах"""
+        expired_count = 0
+        expiring_soon_count = 0
+        
+        for item in self.data:
+            # Проверяем дату окончания сертификата
+            cert_exp_date = item.get('cert_exp_date', '').strip()
+            if cert_exp_date:
+                try:
+                    exp_date = datetime.strptime(cert_exp_date, '%d.%m.%Y').date()
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        expired_count += 1
+                    elif days_left <= 30:
+                        expiring_soon_count += 1
+                except ValueError:
+                    pass
+            
+            # Проверяем дату протокола (если есть срок действия)
+            protocol_date = item.get('lab_protocol_date', '').strip()
+            if protocol_date:
+                try:
+                    prot_date = datetime.strptime(protocol_date, '%d.%m.%Y').date()
+                    # Протоколы обычно действительны 1 год
+                    exp_date = prot_date + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        expired_count += 1
+                    elif days_left <= 30:
+                        expiring_soon_count += 1
+                except ValueError:
+                    pass
+            
+            # Проверяем дату акта отбора
+            act_date = item.get('sample_act_date', '').strip()
+            if act_date:
+                try:
+                    act_dt = datetime.strptime(act_date, '%d.%m.%Y').date()
+                    # Акты обычно действительны 1 год
+                    exp_date = act_dt + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        expired_count += 1
+                    elif days_left <= 30:
+                        expiring_soon_count += 1
+                except ValueError:
+                    pass
+        
+        # Обновляем метку с информацией
+        if expired_count > 0 and expiring_soon_count > 0:
+            self.expired_label.config(
+                text=f"⚠️ Просрочено: {expired_count} | Истекает в течение 30 дней: {expiring_soon_count}"
+            )
+        elif expired_count > 0:
+            self.expired_label.config(text=f"🔴 Просрочено документов: {expired_count}")
+        elif expiring_soon_count > 0:
+            self.expired_label.config(text=f"🟡 Истекает в течение 30 дней: {expiring_soon_count}")
+        else:
+            self.expired_label.config(text="✅ Все документы действительны")
+
+    def show_expired_documents(self):
+        """Отображение только просроченных и истекающих документов"""
+        expired_items = []
+        
+        for item in self.data:
+            is_expired = False
+            is_expiring_soon = False
+            expiry_info = []
+            
+            # Проверяем дату окончания сертификата
+            cert_exp_date = item.get('cert_exp_date', '').strip()
+            if cert_exp_date:
+                try:
+                    exp_date = datetime.strptime(cert_exp_date, '%d.%m.%Y').date()
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        is_expired = True
+                        expiry_info.append(f"Сертификат просрочен на {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        expiry_info.append(f"Сертификат истекает через {days_left} дн.")
+                except ValueError:
+                    pass
+            
+            # Проверяем дату протокола
+            protocol_date = item.get('lab_protocol_date', '').strip()
+            if protocol_date:
+                try:
+                    prot_date = datetime.strptime(protocol_date, '%d.%m.%Y').date()
+                    exp_date = prot_date + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        is_expired = True
+                        expiry_info.append(f"Протокол просрочен на {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        expiry_info.append(f"Протокол истекает через {days_left} дн.")
+                except ValueError:
+                    pass
+            
+            # Проверяем дату акта отбора
+            act_date = item.get('sample_act_date', '').strip()
+            if act_date:
+                try:
+                    act_dt = datetime.strptime(act_date, '%d.%m.%Y').date()
+                    exp_date = act_dt + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        is_expired = True
+                        expiry_info.append(f"Акт просрочен на {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        expiry_info.append(f"Акт истекает через {days_left} дн.")
+                except ValueError:
+                    pass
+            
+            if is_expired or is_expiring_soon:
+                item_copy = item.copy()
+                item_copy['_expiry_info'] = '; '.join(expiry_info)
+                expired_items.append(item_copy)
+        
+        if not expired_items:
+            messagebox.showinfo("Инфо", "Нет просроченных или истекающих документов!")
+            return
+        
+        # Сохраняем текущие данные для восстановления
+        self.backup_data = self.data.copy()
+        self.data = expired_items
+        self.refresh_tree()
+        
+        # Добавляем колонку с информацией об истечении
+        cols = list(self.tree["columns"])
+        if '_expiry_info' not in cols:
+            cols.append('_expiry_info')
+            self.tree["columns"] = cols
+            self.tree.heading('_expiry_info', text='⚠️ Информация о сроках')
+            self.tree.column('_expiry_info', width=300, anchor='w')
+
+    def show_all_documents(self):
+        """Возврат к отображению всех документов"""
+        if hasattr(self, 'backup_data') and self.backup_data:
+            self.data = self.backup_data
+            self.backup_data = None
+            self.refresh_columns()
+            self.refresh_tree()
+            messagebox.showinfo("Инфо", "Отображаются все документы")
+        else:
+            self.refresh_columns()
+            self.refresh_tree()
 
     def on_close(self):
         self.save_data()
