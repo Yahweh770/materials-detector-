@@ -1,0 +1,32 @@
+[
+  {
+    "id": 0,
+    "manufacturer": "ООО «СтройМатериалы»",
+    "material_type": "Цемент М500",
+    "passport_num": "П-123/2024",
+    "production_date": "2024-01-15",
+    "shelf_life": "12 месяцев",
+    "cert_num": "Сер-456/2024",
+    "cert_issue_date": "2024-01-10",
+    "cert_exp_date": "2025-01-10",
+    "lab_protocol_num": "ЛП-789/2024",
+    "lab_protocol_date": "2024-01-12",
+    "sample_act_num": "АО-101/2024",
+    "sample_act_date": "2024-01-11"
+  },
+  {
+    "id": 1,
+    "manufacturer": "ЗАО «БетонСтрой»",
+    "material_type": "Щебень гранитный фр. 20-40",
+    "passport_num": "П-234/2024",
+    "production_date": "2024-02-20",
+    "shelf_life": "Неограничен",
+    "cert_num": "Сер-567/2024",
+    "cert_issue_date": "2024-02-15",
+    "cert_exp_date": "2025-02-15",
+    "lab_protocol_num": "ЛП-890/2024",
+    "lab_protocol_date": "2024-02-18",
+    "sample_act_num": "АО-202/2024",
+    "sample_act_date": "2024-02-17"
+  }
+]
