@@ -74,7 +74,7 @@ class MaterialApp:
         # ==================== ПАНЕЛЬ ИНСТРУМЕНТОВ ====================
         toolbar_frame = tk.Frame(root, relief="raised", bd=1)
         toolbar_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-        toolbar_frame.grid_columnconfigure(10, weight=1)  # Растягиваемый промежуток
+        toolbar_frame.grid_columnconfigure(13, weight=1)  # Растягиваемый промежуток
 
         tk.Button(toolbar_frame, text="➕ Добавить материал", width=20, height=2, bg="#4CAF50", fg="white",
                   font=("Arial", 10, "bold"), command=self.open_add_material_window).grid(row=0, column=0, padx=5, pady=2)
@@ -90,15 +90,18 @@ class MaterialApp:
         
         tk.Button(toolbar_frame, text="🔄 Сменить базу", width=18, height=2, bg="#9C27B0", fg="white",
                   command=self.change_data_file).grid(row=0, column=4, padx=5, pady=2)
+        
+        tk.Button(toolbar_frame, text="⏰ Срок годности", width=18, height=2, bg="#FF5722", fg="white",
+                  command=self.show_materials_status_window).grid(row=0, column=5, padx=5, pady=2)
 
         # Поиск
-        tk.Label(toolbar_frame, text="Поиск:", font=("Arial", 10)).grid(row=0, column=5, padx=(20, 5))
+        tk.Label(toolbar_frame, text="Поиск:", font=("Arial", 10)).grid(row=0, column=6, padx=(20, 5))
         self.search_var = tk.StringVar()
         self.search_var.trace('w', lambda *args: self.search_data())
         self.search_entry = tk.Entry(toolbar_frame, textvariable=self.search_var, width=30, font=("Arial", 10))
-        self.search_entry.grid(row=0, column=6, padx=5)
+        self.search_entry.grid(row=0, column=7, padx=5)
         
-        tk.Button(toolbar_frame, text="🔍 Очистить", width=10, command=self.clear_search).grid(row=0, column=7, padx=5)
+        tk.Button(toolbar_frame, text="🔍 Очистить", width=10, command=self.clear_search).grid(row=0, column=8, padx=5)
         
         # Контекстное меню для Treeview
         self.tree_context_menu = tk.Menu(self.root, tearoff=0)
@@ -110,7 +113,7 @@ class MaterialApp:
 
         self.file_label = tk.Label(toolbar_frame, text=f"Файл: {os.path.basename(self.data_file)}", 
                                   font=("Arial", 10, "bold"), fg="blue")
-        self.file_label.grid(row=0, column=11, padx=15, sticky="e")
+        self.file_label.grid(row=0, column=12, padx=15, sticky="e")
 
         # ==================== ТАБЛИЦА ====================
         # Фрейм для таблицы с прокруткой
@@ -323,6 +326,7 @@ class MaterialApp:
         fields = [
             ("Производитель *", "manufacturer"),
             ("Вид материала *", "material_type"),
+            ("Количество материала", "quantity"),
             ("Паспорт №", "passport_num"),
             ("Дата производства", "production_date"),
             ("Срок хранения", "shelf_life"),
@@ -341,10 +345,15 @@ class MaterialApp:
             entry = tk.Entry(scrollable_frame, font=("Arial", 10))
             entry.grid(row=i, column=1, padx=10, pady=6, sticky="ew")
             entries[key] = entry
+        
+        # Чекбокс "Без срока хранения"
+        no_shelf_life_var = tk.BooleanVar()
+        tk.Checkbutton(scrollable_frame, text="Без срока хранения (не учитывать при проверке)", 
+                      variable=no_shelf_life_var, font=("Arial", 10)).grid(row=len(fields), column=0, columnspan=2, sticky="w", padx=10, pady=6)
 
         # Фрейм для дополнительных полей
         extra_fields_frame = tk.Frame(scrollable_frame)
-        extra_fields_frame.grid(row=len(fields), column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+        extra_fields_frame.grid(row=len(fields)+1, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
         extra_fields_frame.grid_columnconfigure(1, weight=1)
         
         def add_extra_field():
@@ -359,13 +368,13 @@ class MaterialApp:
                 return
 
             row_idx = len(entries)
-            tk.Label(extra_fields_frame, text=name + ":", font=("Arial", 10)).grid(row=row_idx-len(fields), column=0, sticky="e", padx=10, pady=6)
+            tk.Label(extra_fields_frame, text=name + ":", font=("Arial", 10)).grid(row=row_idx-len(fields)-1, column=0, sticky="e", padx=10, pady=6)
             entry = tk.Entry(extra_fields_frame, font=("Arial", 10))
-            entry.grid(row=row_idx-len(fields), column=1, padx=10, pady=6, sticky="ew")
+            entry.grid(row=row_idx-len(fields)-1, column=1, padx=10, pady=6, sticky="ew")
             entries[key] = entry
 
         tk.Button(scrollable_frame, text="➕ Добавить поле", bg="#FF9800", fg="white",
-                 command=add_extra_field).grid(row=len(fields)+1, column=0, columnspan=2, pady=10)
+                 command=add_extra_field).grid(row=len(fields)+2, column=0, columnspan=2, pady=10)
 
         def save_material():
             # Проверка заполнения обязательных полей
@@ -381,6 +390,9 @@ class MaterialApp:
 
             for key, entry in entries.items():
                 new_item[key] = entry.get().strip()
+            
+            # Добавляем флаг "Без срока хранения"
+            new_item['no_shelf_life'] = str(no_shelf_life_var.get())
 
             self.data.append(new_item)
             self.refresh_columns()
@@ -781,6 +793,7 @@ class MaterialApp:
         fields = [
             ("Производитель", "manufacturer"),
             ("Вид материала", "material_type"),
+            ("Количество материала", "quantity"),
             ("Паспорт №", "passport_num"),
             ("Дата производства", "production_date"),
             ("Срок хранения", "shelf_life"),
@@ -808,6 +821,12 @@ class MaterialApp:
             
             # Добавляем контекстное меню по правой кнопке
             entry.bind("<Button-3>", lambda e: self.show_context_menu(e))
+        
+        # Чекбокс "Без срока хранения"
+        no_shelf_life_var = tk.BooleanVar()
+        no_shelf_life_var.set(record.get('no_shelf_life', 'False') == 'True')
+        tk.Checkbutton(scrollable_frame, text="Без срока хранения (не учитывать при проверке)", 
+                      variable=no_shelf_life_var, font=("Arial", 10)).grid(row=len(fields), column=0, columnspan=2, sticky="w", padx=10, pady=6)
 
         # Добавляем дополнительные поля
         extra_fields = [k for k in self.tree["columns"] if k not in [f[1] for f in fields]]
@@ -838,6 +857,8 @@ class MaterialApp:
                 if row.get('id') == record_id:
                     for key, entry in entries.items():
                         row[key] = entry.get().strip()
+                    # Обновляем флаг "Без срока хранения"
+                    row['no_shelf_life'] = str(no_shelf_life_var.get())
                     break
             
             self.refresh_tree()
@@ -947,8 +968,14 @@ class MaterialApp:
         """Обновление информации о просроченных документах"""
         expired_count = 0
         expiring_soon_count = 0
+        valid_count = 0
         
         for item in self.data:
+            # Если материал без срока хранения, пропускаем его
+            if item.get('no_shelf_life', 'False') == 'True':
+                valid_count += 1
+                continue
+            
             # Проверяем дату окончания сертификата
             cert_exp_date = item.get('cert_exp_date', '').strip()
             if cert_exp_date:
@@ -960,6 +987,8 @@ class MaterialApp:
                         expired_count += 1
                     elif days_left <= 30:
                         expiring_soon_count += 1
+                    else:
+                        valid_count += 1
                 except ValueError:
                     pass
             
@@ -1006,6 +1035,278 @@ class MaterialApp:
             self.expired_label.config(text=f"🟡 Истекает в течение 30 дней: {expiring_soon_count}")
         else:
             self.expired_label.config(text="✅ Все документы действительны")
+
+    def show_materials_status_window(self):
+        """Отображение окна со статусом материалов (просроченные/действительные/без срока хранения)"""
+        expired_items = []
+        valid_items = []
+        no_shelf_life_items = []
+        
+        for item in self.data:
+            # Проверяем флаг "Без срока хранения"
+            if item.get('no_shelf_life', 'False') == 'True':
+                no_shelf_life_items.append(item.copy())
+                continue
+            
+            is_expired = False
+            is_expiring_soon = False
+            is_valid = True
+            expiry_info = []
+            
+            # Проверяем дату окончания сертификата
+            cert_exp_date = item.get('cert_exp_date', '').strip()
+            if cert_exp_date:
+                try:
+                    exp_date = datetime.strptime(cert_exp_date, '%d.%m.%Y').date()
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        is_expired = True
+                        is_valid = False
+                        expiry_info.append(f"Сертификат просрочен на {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        is_valid = False
+                        expiry_info.append(f"Сертификат истекает через {days_left} дн.")
+                except ValueError:
+                    pass
+            
+            # Проверяем дату протокола
+            protocol_date = item.get('lab_protocol_date', '').strip()
+            if protocol_date:
+                try:
+                    prot_date = datetime.strptime(protocol_date, '%d.%m.%Y').date()
+                    exp_date = prot_date + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        is_expired = True
+                        is_valid = False
+                        expiry_info.append(f"Протокол просрочен на {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        is_valid = False
+                        expiry_info.append(f"Протокол истекает через {days_left} дн.")
+                except ValueError:
+                    pass
+            
+            # Проверяем дату акта отбора
+            act_date = item.get('sample_act_date', '').strip()
+            if act_date:
+                try:
+                    act_dt = datetime.strptime(act_date, '%d.%m.%Y').date()
+                    exp_date = act_dt + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        is_expired = True
+                        is_valid = False
+                        expiry_info.append(f"Акт просрочен на {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        is_valid = False
+                        expiry_info.append(f"Акт истекает через {days_left} дн.")
+                except ValueError:
+                    pass
+            
+            if is_expired or is_expiring_soon:
+                item_copy = item.copy()
+                item_copy['_expiry_info'] = '; '.join(expiry_info)
+                expired_items.append(item_copy)
+            elif is_valid:
+                valid_items.append(item.copy())
+        
+        # Создаем отдельное окно для статуса материалов
+        status_win = tk.Toplevel(self.root)
+        status_win.title("⏰ Статус материалов")
+        status_win.geometry("1400x800")
+        status_win.minsize(900, 500)
+        
+        # Настройка сетки для окна
+        status_win.grid_rowconfigure(2, weight=1)
+        status_win.grid_columnconfigure(0, weight=1)
+        
+        # Верхняя панель с информацией
+        info_frame = tk.Frame(status_win, relief="raised", bd=1, bg="#E3F2FD")
+        info_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        info_frame.grid_columnconfigure(0, weight=1)
+        
+        total = len(self.data)
+        info_text = f"📊 Всего материалов: {total} | ✅ Действительные: {len(valid_items)} | ⚠️ Просроченные/истекающие: {len(expired_items)} | 📍 Без срока хранения: {len(no_shelf_life_items)}"
+        tk.Label(info_frame, text=info_text, 
+                font=("Arial", 11, "bold"), bg="#E3F2FD", fg="#1565C0").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        
+        # Кнопка закрытия окна
+        tk.Button(info_frame, text="✖️ Закрыть", width=12, height=1, 
+                 command=status_win.destroy, bg="#FF5722", fg="white").grid(row=0, column=1, padx=10, pady=5)
+        
+        # Вкладки для разных категорий
+        notebook = ttk.Notebook(status_win)
+        notebook.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        
+        # Фрейм для просроченных материалов
+        expired_frame = tk.Frame(notebook)
+        notebook.add(expired_frame, text=f"⚠️ Просроченные/истекающие ({len(expired_items)})")
+        
+        # Фрейм для действительных материалов
+        valid_frame = tk.Frame(notebook)
+        notebook.add(valid_frame, text=f"✅ Действительные ({len(valid_items)})")
+        
+        # Фрейм для материалов без срока хранения
+        no_shelf_frame = tk.Frame(notebook)
+        notebook.add(no_shelf_frame, text=f"📍 Без срока хранения ({len(no_shelf_life_items)})")
+        
+        # Создаем таблицы для каждой категории
+        self._create_status_table(expired_frame, expired_items, include_expiry_info=True)
+        self._create_status_table(valid_frame, valid_items, include_expiry_info=False)
+        self._create_status_table(no_shelf_frame, no_shelf_life_items, include_expiry_info=False)
+        
+        # Нижняя панель с кнопками
+        bottom_frame = tk.Frame(status_win, relief="sunken", bd=1)
+        bottom_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=5)
+        
+        tk.Button(bottom_frame, text="🔄 Обновить", width=15, 
+                 command=lambda: [status_win.destroy(), self.show_materials_status_window()]).grid(row=0, column=0, padx=5, pady=2)
+        
+        tk.Button(bottom_frame, text="📋 Экспорт в Excel", width=20, 
+                 command=lambda: self.export_status_to_excel(expired_items, valid_items, no_shelf_life_items)).grid(row=0, column=1, padx=5, pady=2)
+    
+    def _create_status_table(self, parent, items, include_expiry_info=False):
+        """Создание таблицы для отображения статуса материалов"""
+        # Фрейм для таблицы с прокруткой
+        tree_frame = tk.Frame(parent)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+        
+        # Создаем Treeview
+        status_tree = ttk.Treeview(tree_frame, show="headings")
+        
+        # Вертикальная прокрутка
+        y_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=status_tree.yview)
+        status_tree.configure(yscrollcommand=y_scrollbar.set)
+        
+        # Горизонтальная прокрутка
+        x_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal", command=status_tree.xview)
+        status_tree.configure(xscrollcommand=x_scrollbar.set)
+        
+        status_tree.grid(row=0, column=0, sticky="nsew")
+        y_scrollbar.grid(row=0, column=1, sticky="ns")
+        x_scrollbar.grid(row=1, column=0, sticky="ew")
+        
+        # Настраиваем колонки
+        cols = list(self.tree["columns"])
+        if include_expiry_info:
+            cols = cols + ['_expiry_info']
+        status_tree["columns"] = cols
+        
+        # Копируем заголовки из основного дерева
+        for col in cols:
+            if col == '_expiry_info':
+                status_tree.heading(col, text='⚠️ Информация о сроках')
+                status_tree.column(col, width=300, anchor='w')
+            else:
+                try:
+                    heading = self.tree.heading(col)['text']
+                    status_tree.heading(col, text=heading)
+                    status_tree.column(col, width=self.tree.column(col)['width'], anchor=self.tree.column(col)['anchor'])
+                except:
+                    status_tree.heading(col, text=col)
+                    status_tree.column(col, width=100, anchor='w')
+        
+        # Заполняем данными
+        for item in items:
+            values = [item.get(col, "") for col in cols]
+            status_tree.insert("", "end", values=values)
+        
+        # Привязка двойного клика для копирования
+        status_tree.bind("<Double-1>", lambda e: self.copy_from_status_tree(status_tree))
+    
+    def copy_from_status_tree(self, tree):
+        """Копирование выбранной строки из дерева статуса в буфер обмена"""
+        selection = tree.selection()
+        if not selection:
+            messagebox.showwarning("Внимание", "Выберите строку для копирования!")
+            return
+        
+        item = tree.item(selection[0])
+        values = item['values']
+        cols = tree["columns"]
+        
+        # Формируем строку с заголовками
+        header_row = '\t'.join(str(col) for col in cols)
+        data_row = '\t'.join(str(v) for v in values)
+        text_to_copy = f"{header_row}\n{data_row}"
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text_to_copy)
+        messagebox.showinfo("Успешно", "Строка скопирована в буфер обмена!")
+    
+    def export_status_to_excel(self, expired_items, valid_items, no_shelf_life_items):
+        """Экспорт статуса материалов в Excel"""
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+            title="Сохранить отчет о статусе материалов как"
+        )
+        
+        if not file_path:
+            return
+        
+        wb = Workbook()
+        
+        # Лист с просроченными материалами
+        ws_expired = wb.active
+        ws_expired.title = "⚠️ Просроченные/истекающие"
+        self._write_items_to_sheet(ws_expired, expired_items, include_expiry_info=True)
+        
+        # Лист с действительными материалами
+        ws_valid = wb.create_sheet(title="✅ Действительные")
+        self._write_items_to_sheet(ws_valid, valid_items, include_expiry_info=False)
+        
+        # Лист с материалами без срока хранения
+        ws_no_shelf = wb.create_sheet(title="📍 Без срока хранения")
+        self._write_items_to_sheet(ws_no_shelf, no_shelf_life_items, include_expiry_info=False)
+        
+        try:
+            wb.save(file_path)
+            messagebox.showinfo("Успешно", f"Отчет сохранен в файл:\n{file_path}")
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось сохранить файл: {e}")
+    
+    def _write_items_to_sheet(self, ws, items, include_expiry_info=False):
+        """Запись данных материалов в лист Excel"""
+        if not items:
+            ws['A1'] = "Нет данных"
+            return
+        
+        # Заголовки
+        cols = list(self.tree["columns"])
+        if include_expiry_info:
+            cols = cols + ['_expiry_info']
+        
+        for col_idx, col in enumerate(cols, 1):
+            cell = ws.cell(row=1, column=col_idx, value=col)
+            cell.font = openpyxl.styles.Font(bold=True)
+            cell.fill = openpyxl.styles.PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+        
+        # Данные
+        for row_idx, item in enumerate(items, 2):
+            for col_idx, col in enumerate(cols, 1):
+                ws.cell(row=row_idx, column=col_idx, value=item.get(col, ""))
+        
+        # Автоширина колонок
+        for col in ws.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column].width = adjusted_width
 
     def show_expired_documents(self):
         """Отображение только просроченных и истекающих документов в отдельном окне с изменяемым размером"""
