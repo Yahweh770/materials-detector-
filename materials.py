@@ -747,8 +747,36 @@ class MaterialApp:
         """Редактирование записи"""
         win = tk.Toplevel(self.root)
         win.title("Редактирование материала")
-        win.geometry("700x600")
-        win.resizable(True, True)
+        win.geometry("800x700")
+        win.minsize(600, 500)
+        
+        # Настройка сетки для окна - позволяем расширять
+        win.grid_rowconfigure(0, weight=1)  # Основной контент расширяется
+        win.grid_columnconfigure(0, weight=1)
+        
+        # Основной фрейм для полей с прокруткой
+        main_frame = tk.Frame(win)
+        main_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=5)
+        main_frame.grid_rowconfigure(0, weight=1)
+        main_frame.grid_columnconfigure(0, weight=1)
+        
+        canvas = tk.Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # Настройка сетки для scrollable_frame - колонка с полями расширяется
+        scrollable_frame.grid_columnconfigure(1, weight=1)
 
         fields = [
             ("Производитель", "manufacturer"),
@@ -767,9 +795,9 @@ class MaterialApp:
 
         entries = {}
         for i, (label_text, key) in enumerate(fields):
-            tk.Label(win, text=label_text + ":", font=("Arial", 10)).grid(row=i, column=0, sticky="e", padx=10, pady=6)
-            entry = tk.Entry(win, width=60, font=("Arial", 10))
-            entry.grid(row=i, column=1, padx=10, pady=6)
+            tk.Label(scrollable_frame, text=label_text + ":", font=("Arial", 10)).grid(row=i, column=0, sticky="e", padx=10, pady=6)
+            entry = tk.Entry(scrollable_frame, font=("Arial", 10))
+            entry.grid(row=i, column=1, padx=10, pady=6, sticky="ew")
             entry.insert(0, record.get(key, ""))
             entries[key] = entry
             
@@ -785,9 +813,9 @@ class MaterialApp:
         extra_fields = [k for k in self.tree["columns"] if k not in [f[1] for f in fields]]
         for key in extra_fields:
             i = len(entries)
-            tk.Label(win, text=key.replace("_", " ").title() + ":", font=("Arial", 10)).grid(row=i, column=0, sticky="e", padx=10, pady=6)
-            entry = tk.Entry(win, width=60, font=("Arial", 10))
-            entry.grid(row=i, column=1, padx=10, pady=6)
+            tk.Label(scrollable_frame, text=key.replace("_", " ").title() + ":", font=("Arial", 10)).grid(row=i, column=0, sticky="e", padx=10, pady=6)
+            entry = tk.Entry(scrollable_frame, font=("Arial", 10))
+            entry.grid(row=i, column=1, padx=10, pady=6, sticky="ew")
             entry.insert(0, record.get(key, ""))
             entries[key] = entry
             
@@ -797,6 +825,13 @@ class MaterialApp:
             entry.bind("<Control-x>", lambda e: e.widget.event_generate('<<Cut>>'))
             entry.bind("<Button-3>", lambda e: self.show_context_menu(e))
 
+        # Фрейм для кнопки сохранения внизу
+        button_frame = tk.Frame(win)
+        button_frame.grid(row=1, column=0, sticky="ew", padx=10, pady=10)
+        
+        tk.Button(button_frame, text="💾 Сохранить изменения", width=20, height=2, bg="#4CAF50", fg="white",
+                 command=lambda: save_changes()).pack()
+                 
         def save_changes():
             record_id = record.get('id')
             for row in self.data:
@@ -809,10 +844,7 @@ class MaterialApp:
             self.save_data()
             win.destroy()
             messagebox.showinfo("Успешно", "Запись обновлена!")
-
-        tk.Button(win, text="💾 Сохранить изменения", width=20, height=2, bg="#4CAF50", fg="white",
-                 command=save_changes).pack(pady=20)
-                 
+        
         # Делаем окно активным и передаем фокус первому полю
         win.focus_set()
         if entries:
