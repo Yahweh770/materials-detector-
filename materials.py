@@ -1,6 +1,6 @@
 """
 Приложение для учёта материалов — Единая база
-Версия: 2.0
+Версия: 3.0 (Улучшенная верстка с масштабированием)
 
 Функционал:
 - Добавление, редактирование и удаление записей о материалах
@@ -10,6 +10,7 @@
 - Работа с несколькими файлами баз данных
 - Контекстное меню для быстрого доступа к функциям
 - Копирование данных в буфер обмена
+- Полностью масштабируемый интерфейс всех окон
 
 Автор: [Ваше имя]
 Дата создания: 2024
@@ -31,9 +32,13 @@ class MaterialApp:
         """Инициализация приложения"""
         self.root = root
         self.root.title("Учёт материалов — Единая база")
-        self.root.geometry("1920x980")
-        self.root.minsize(1400, 700)
+        self.root.geometry("1920x1080")
+        self.root.minsize(1200, 600)
         self.root.state('zoomed')  # Запуск в полноэкранном режиме по умолчанию
+        
+        # Настройка сетки для главного окна
+        self.root.grid_rowconfigure(3, weight=1)  # Treeview расширяется
+        self.root.grid_columnconfigure(0, weight=1)
 
         self.data = []
         self.next_id = 0
@@ -67,34 +72,33 @@ class MaterialApp:
         edit_menu.add_command(label="Удалить строку", command=self.delete_row)
 
         # ==================== ПАНЕЛЬ ИНСТРУМЕНТОВ ====================
-        toolbar = tk.Frame(root, relief="raised", bd=1)
-        toolbar.pack(fill="x", padx=5, pady=5)
+        toolbar_frame = tk.Frame(root, relief="raised", bd=1)
+        toolbar_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        toolbar_frame.grid_columnconfigure(10, weight=1)  # Растягиваемый промежуток
 
-        tk.Button(toolbar, text="➕ Добавить материал", width=20, height=2, bg="#4CAF50", fg="white",
-                  font=("Arial", 10, "bold"), command=self.open_add_material_window).pack(side="left", padx=5)
+        tk.Button(toolbar_frame, text="➕ Добавить материал", width=20, height=2, bg="#4CAF50", fg="white",
+                  font=("Arial", 10, "bold"), command=self.open_add_material_window).grid(row=0, column=0, padx=5, pady=2)
         
-        tk.Button(toolbar, text="✏️ Редактировать", width=18, height=2, bg="#FF9800", fg="white",
-                  command=self.edit_selected_row).pack(side="left", padx=5)
+        tk.Button(toolbar_frame, text="✏️ Редактировать", width=18, height=2, bg="#FF9800", fg="white",
+                  command=self.edit_selected_row).grid(row=0, column=1, padx=5, pady=2)
         
-        tk.Button(toolbar, text="🗑️ Удалить", width=18, height=2, bg="#f44336", fg="white",
-                  command=self.delete_row).pack(side="left", padx=5)
+        tk.Button(toolbar_frame, text="🗑️ Удалить", width=18, height=2, bg="#f44336", fg="white",
+                  command=self.delete_row).grid(row=0, column=2, padx=5, pady=2)
         
-        tk.Button(toolbar, text="📊 Экспорт в Excel", width=18, height=2, bg="#2196F3", fg="white",
-                  command=self.export_to_excel).pack(side="left", padx=5)
+        tk.Button(toolbar_frame, text="📊 Экспорт в Excel", width=18, height=2, bg="#2196F3", fg="white",
+                  command=self.export_to_excel).grid(row=0, column=3, padx=5, pady=2)
         
-        tk.Button(toolbar, text="🔄 Сменить базу", width=18, height=2, bg="#9C27B0", fg="white",
-                  command=self.change_data_file).pack(side="left", padx=5)
-
-        tk.Label(toolbar, text="   ").pack(side="left")  # отступ
+        tk.Button(toolbar_frame, text="🔄 Сменить базу", width=18, height=2, bg="#9C27B0", fg="white",
+                  command=self.change_data_file).grid(row=0, column=4, padx=5, pady=2)
 
         # Поиск
-        tk.Label(toolbar, text="Поиск:", font=("Arial", 10)).pack(side="left", padx=(20, 5))
+        tk.Label(toolbar_frame, text="Поиск:", font=("Arial", 10)).grid(row=0, column=5, padx=(20, 5))
         self.search_var = tk.StringVar()
         self.search_var.trace('w', lambda *args: self.search_data())
-        self.search_entry = tk.Entry(toolbar, textvariable=self.search_var, width=30, font=("Arial", 10))
-        self.search_entry.pack(side="left", padx=5)
+        self.search_entry = tk.Entry(toolbar_frame, textvariable=self.search_var, width=30, font=("Arial", 10))
+        self.search_entry.grid(row=0, column=6, padx=5)
         
-        tk.Button(toolbar, text="🔍 Очистить", width=10, command=self.clear_search).pack(side="left", padx=5)
+        tk.Button(toolbar_frame, text="🔍 Очистить", width=10, command=self.clear_search).grid(row=0, column=7, padx=5)
         
         # Контекстное меню для Treeview
         self.tree_context_menu = tk.Menu(self.root, tearoff=0)
@@ -104,19 +108,32 @@ class MaterialApp:
         self.tree_context_menu.add_command(label="Редактировать", command=self.edit_selected_row)
         self.tree_context_menu.add_command(label="Удалить", command=self.delete_row)
 
-        self.file_label = tk.Label(toolbar, text=f"Файл: {os.path.basename(self.data_file)}", 
+        self.file_label = tk.Label(toolbar_frame, text=f"Файл: {os.path.basename(self.data_file)}", 
                                   font=("Arial", 10, "bold"), fg="blue")
-        self.file_label.pack(side="right", padx=15)
+        self.file_label.grid(row=0, column=11, padx=15, sticky="e")
 
         # ==================== ТАБЛИЦА ====================
-        self.tree = ttk.Treeview(root, show="headings", height=25)
+        # Фрейм для таблицы с прокруткой
+        tree_frame = tk.Frame(root)
+        tree_frame.grid(row=3, column=0, sticky="nsew", padx=10, pady=5)
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+        
+        self.tree = ttk.Treeview(tree_frame, show="headings")
+        
+        # Вертикальная прокрутка
+        y_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=y_scrollbar.set)
+        
+        # Горизонтальная прокрутка
+        x_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(xscrollcommand=x_scrollbar.set)
+
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        y_scrollbar.grid(row=0, column=1, sticky="ns")
+        x_scrollbar.grid(row=1, column=0, sticky="ew")
+        
         self.refresh_columns()
-
-        scrollbar = ttk.Scrollbar(root, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-
-        self.tree.pack(side="left", fill="both", expand=True, padx=10, pady=5)
-        scrollbar.pack(side="right", fill="y", padx=(0,10), pady=5)
 
         # Привязки для Treeview
         self.tree.bind("<Double-1>", self.on_double_click)
@@ -130,28 +147,29 @@ class MaterialApp:
         self.root.bind("<Control-c>", self.global_copy)
         self.root.bind("<Control-v>", self.global_paste)
         self.root.bind("<Control-x>", self.global_cut)
-        
+
         # ==================== НИЖНЯЯ ПАНЕЛЬ ====================
         bottom_frame = tk.Frame(root, relief="sunken", bd=1)
-        bottom_frame.pack(fill="x", padx=10, pady=8)
+        bottom_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=8)
+        bottom_frame.grid_columnconfigure(5, weight=1)  # Растягиваемый промежуток
 
         tk.Button(bottom_frame, text="💾 Сохранить все изменения", width=25, height=2,
                  bg="#2E7D32", fg="white", font=("Arial", 10, "bold"),
-                 command=lambda: self.save_data(show_msg=True)).pack(side="left", padx=10)
+                 command=lambda: self.save_data(show_msg=True)).grid(row=0, column=0, padx=10, sticky="w")
 
         # Индикатор просроченных документов
         self.expired_label = tk.Label(bottom_frame, text="", font=("Arial", 10, "bold"), fg="red")
-        self.expired_label.pack(side="left", padx=20)
+        self.expired_label.grid(row=0, column=1, padx=20, sticky="w")
 
         tk.Button(bottom_frame, text="⚠️ Просроченные документы", width=25, height=2,
                  bg="#FF5722", fg="white", font=("Arial", 10, "bold"),
-                 command=self.show_expired_documents).pack(side="left", padx=10)
+                 command=self.show_expired_documents).grid(row=0, column=2, padx=10, sticky="w")
 
         tk.Button(bottom_frame, text="🔄 Показать все", width=15, height=2,
-                 command=self.show_all_documents).pack(side="left", padx=5)
+                 command=self.show_all_documents).grid(row=0, column=3, padx=5, sticky="w")
 
         tk.Button(bottom_frame, text="🚪 Выход", width=15, height=2, bg="#f44336", fg="white",
-                 command=self.on_close).pack(side="right", padx=10)
+                 command=self.on_close).grid(row=0, column=6, padx=10, sticky="e")
 
         self.refresh_tree()
         
@@ -271,12 +289,21 @@ class MaterialApp:
     def open_add_material_window(self):
         win = tk.Toplevel(self.root)
         win.title("Добавление нового материала")
-        win.geometry("700x600")
-        win.resizable(True, True)
+        win.geometry("800x700")
+        win.minsize(600, 500)
+        
+        # Настройка сетки для окна
+        win.grid_rowconfigure(1, weight=1)
+        win.grid_columnconfigure(0, weight=1)
 
         # Основной фрейм для полей с прокруткой
-        canvas = tk.Canvas(win)
-        scrollbar = ttk.Scrollbar(win, orient="vertical", command=canvas.yview)
+        canvas_frame = tk.Frame(win)
+        canvas_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+        canvas_frame.grid_rowconfigure(0, weight=1)
+        canvas_frame.grid_columnconfigure(0, weight=1)
+        
+        canvas = tk.Canvas(canvas_frame)
+        scrollbar = ttk.Scrollbar(canvas_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = tk.Frame(canvas)
 
         scrollable_frame.bind(
@@ -287,8 +314,11 @@ class MaterialApp:
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
+        canvas.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        
+        # Настройка сетки для scrollable_frame
+        scrollable_frame.grid_columnconfigure(1, weight=1)
 
         fields = [
             ("Производитель *", "manufacturer"),
@@ -308,13 +338,14 @@ class MaterialApp:
         entries = {}
         for i, (label_text, key) in enumerate(fields):
             tk.Label(scrollable_frame, text=label_text + ":", font=("Arial", 10)).grid(row=i, column=0, sticky="e", padx=10, pady=6)
-            entry = tk.Entry(scrollable_frame, width=60, font=("Arial", 10))
-            entry.grid(row=i, column=1, padx=10, pady=6)
+            entry = tk.Entry(scrollable_frame, font=("Arial", 10))
+            entry.grid(row=i, column=1, padx=10, pady=6, sticky="ew")
             entries[key] = entry
 
         # Фрейм для дополнительных полей
         extra_fields_frame = tk.Frame(scrollable_frame)
-        extra_fields_frame.grid(row=len(fields), column=0, columnspan=2, sticky="w", padx=10, pady=5)
+        extra_fields_frame.grid(row=len(fields), column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+        extra_fields_frame.grid_columnconfigure(1, weight=1)
         
         def add_extra_field():
             name = simpledialog.askstring("Дополнительное поле", 
@@ -329,8 +360,8 @@ class MaterialApp:
 
             row_idx = len(entries)
             tk.Label(extra_fields_frame, text=name + ":", font=("Arial", 10)).grid(row=row_idx-len(fields), column=0, sticky="e", padx=10, pady=6)
-            entry = tk.Entry(extra_fields_frame, width=60, font=("Arial", 10))
-            entry.grid(row=row_idx-len(fields), column=1, padx=10, pady=6)
+            entry = tk.Entry(extra_fields_frame, font=("Arial", 10))
+            entry.grid(row=row_idx-len(fields), column=1, padx=10, pady=6, sticky="ew")
             entries[key] = entry
 
         tk.Button(scrollable_frame, text="➕ Добавить поле", bg="#FF9800", fg="white",
@@ -358,8 +389,11 @@ class MaterialApp:
             win.destroy()
             messagebox.showinfo("Успешно", "Новый материал добавлен!")
 
-        tk.Button(win, text="✅ Сохранить материал", width=20, height=2, bg="#4CAF50", fg="white",
-                 command=save_material).pack(pady=10)
+        # Кнопка сохранения внизу
+        button_frame = tk.Frame(win)
+        button_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=10)
+        tk.Button(button_frame, text="✅ Сохранить материал", width=20, height=2, bg="#4CAF50", fg="white",
+                 command=save_material).pack()
 
     def add_new_column_from_window(self):
         name = simpledialog.askstring("Новое поле", 
