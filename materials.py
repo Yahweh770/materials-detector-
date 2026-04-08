@@ -391,14 +391,34 @@ class MaterialApp:
             except:
                 pass
 
-        file_path = filedialog.askopenfilename(title="Выберите materials.json", 
-                                              filetypes=[("JSON файл", "*.json")])
-        if not file_path:
+        # Сначала пробуем использовать файл по умолчанию в текущей директории
+        default_file = "materials.json"
+        if os.path.exists(default_file):
+            with open(config_file, "w", encoding="utf-8") as f:
+                json.dump({"data_file": default_file}, f, ensure_ascii=False, indent=2)
+            return default_file
+        
+        # Если файл не найден, предлагаем пользователю выбрать папку для создания нового файла
+        folder_path = filedialog.askdirectory(title="Выберите папку для создания базы данных материалов")
+        if not folder_path:
+            # Если пользователь отменил выбор, используем файл по умолчанию в текущей директории
+            file_path = default_file
+        else:
+            file_path = os.path.join(folder_path, "materials.json")
+        
+        # Создаём новый пустой файл базы данных
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump([], f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Не удалось создать файл базы данных: {e}")
             self.root.destroy()
             exit()
 
         with open(config_file, "w", encoding="utf-8") as f:
             json.dump({"data_file": file_path}, f, ensure_ascii=False, indent=2)
+        
+        messagebox.showinfo("Успешно", f"Файл базы данных создан:\n{file_path}")
         return file_path
 
     def load_data(self):
