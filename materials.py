@@ -976,7 +976,7 @@ class MaterialApp:
             self.expired_label.config(text="✅ Все документы действительны")
 
     def show_expired_documents(self):
-        """Отображение только просроченных и истекающих документов"""
+        """Отображение только просроченных и истекающих документов в отдельном окне с изменяемым размером"""
         expired_items = []
         
         for item in self.data:
@@ -1043,18 +1043,143 @@ class MaterialApp:
             messagebox.showinfo("Инфо", "Нет просроченных или истекающих документов!")
             return
         
-        # Сохраняем текущие данные для восстановления
-        self.backup_data = self.data.copy()
-        self.data = expired_items
-        self.refresh_tree()
+        # Создаем отдельное окно для просроченных документов
+        expired_win = tk.Toplevel(self.root)
+        expired_win.title("⚠️ Просроченные документы")
+        expired_win.geometry("1200x700")
+        expired_win.minsize(800, 400)
         
-        # Добавляем колонку с информацией об истечении
-        cols = list(self.tree["columns"])
-        if '_expiry_info' not in cols:
-            cols.append('_expiry_info')
-            self.tree["columns"] = cols
-            self.tree.heading('_expiry_info', text='⚠️ Информация о сроках')
-            self.tree.column('_expiry_info', width=300, anchor='w')
+        # Настройка сетки для окна
+        expired_win.grid_rowconfigure(1, weight=1)
+        expired_win.grid_columnconfigure(0, weight=1)
+        
+        # Верхняя панель с информацией
+        info_frame = tk.Frame(expired_win, relief="raised", bd=1, bg="#FFF3E0")
+        info_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        info_frame.grid_columnconfigure(0, weight=1)
+        
+        tk.Label(info_frame, text=f"📊 Найдено просроченных/истекающих документов: {len(expired_items)}", 
+                font=("Arial", 11, "bold"), bg="#FFF3E0", fg="#E65100").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        
+        # Кнопка закрытия окна
+        tk.Button(info_frame, text="✖️ Закрыть", width=12, height=1, 
+                 command=expired_win.destroy, bg="#FF5722", fg="white").grid(row=0, column=1, padx=10, pady=5)
+        
+        # Фрейм для таблицы с прокруткой
+        tree_frame = tk.Frame(expired_win)
+        tree_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+        
+        # Создаем Treeview для отображения просроченных документов
+        expired_tree = ttk.Treeview(tree_frame, show="headings")
+        
+        # Вертикальная прокрутка
+        y_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=expired_tree.yview)
+        expired_tree.configure(yscrollcommand=y_scrollbar.set)
+        
+        # Горизонтальная прокрутка
+        x_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal", command=expired_tree.xview)
+        expired_tree.configure(xscrollcommand=x_scrollbar.set)
+        
+        expired_tree.grid(row=0, column=0, sticky="nsew")
+        y_scrollbar.grid(row=0, column=1, sticky="ns")
+        x_scrollbar.grid(row=1, column=0, sticky="ew")
+        
+        # Настраиваем колонки
+        cols = list(self.tree["columns"]) + ['_expiry_info']
+        expired_tree["columns"] = cols
+        
+        # Копируем заголовки из основного дерева
+        for col in cols:
+            if col == '_expiry_info':
+                expired_tree.heading(col, text='⚠️ Информация о сроках')
+                expired_tree.column(col, width=300, anchor='w')
+            else:
+                # Получаем заголовок из основного дерева
+                try:
+                    heading = self.tree.heading(col)['text']
+                    expired_tree.heading(col, text=heading)
+                    expired_tree.column(col, width=self.tree.column(col)['width'], anchor=self.tree.column(col)['anchor'])
+                except:
+                    expired_tree.heading(col, text=col)
+                    expired_tree.column(col, width=100, anchor='w')
+        
+        # Заполняем данными
+        for item in expired_items:
+            values = [item.get(col, "") for col in cols]
+            expired_tree.insert("", "end", values=values)
+        
+        # Нижняя панель с кнопками
+        bottom_frame = tk.Frame(expired_win, relief="sunken", bd=1)
+        bottom_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
+        
+        tk.Button(bottom_frame, text="📋 Копировать выбранное", width=20, 
+                 command=lambda: self.copy_from_expired_tree(expired_tree)).grid(row=0, column=0, padx=5, pady=2)
+        
+        tk.Button(bottom_frame, text="📍 Перейти к документу в основной таблице", width=30, 
+                 command=lambda: self.navigate_to_item_in_main_tree(expired_tree, expired_win)).grid(row=0, column=1, padx=5, pady=2)
+        
+        # Привязка двойного клика для навигации
+        expired_tree.bind("<Double-1>", lambda e: self.navigate_to_item_in_main_tree(expired_tree, expired_win))
+
+    def copy_from_expired_tree(self, tree):
+        """Копирование выбранной строки из дерева просроченных документов в буфер обмена"""
+        selection = tree.selection()
+        if not selection:
+            messagebox.showwarning("Внимание", "Выберите строку для копирования!")
+            return
+        
+        item = tree.item(selection[0])
+        values = item['values']
+        cols = tree["columns"]
+        
+        # Формируем строку с заголовками
+        header_row = '\t'.join(str(col) for col in cols)
+        data_row = '\t'.join(str(v) for v in values)
+        text_to_copy = f"{header_row}\n{data_row}"
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text_to_copy)
+        messagebox.showinfo("Успешно", "Строка скопирована в буфер обмена!")
+
+    def navigate_to_item_in_main_tree(self, expired_tree, expired_win):
+        """Переход к выбранному документу в основной таблице"""
+        selection = expired_tree.selection()
+        if not selection:
+            messagebox.showwarning("Внимание", "Выберите документ для перехода!")
+            return
+        
+        item = expired_tree.item(selection[0])
+        values = item['values']
+        
+        # Закрываем окно просроченных документов
+        expired_win.destroy()
+        
+        # Возвращаем отображение всех документов если был фильтр
+        if hasattr(self, 'backup_data') and self.backup_data:
+            self.data = self.backup_data
+            self.backup_data = None
+            self.refresh_columns()
+            self.refresh_tree()
+        
+        # Ищем элемент в основной таблице по значению первой колонки (обычно это производитель или ID)
+        # Сравниваем по всем значениям
+        found_item = None
+        for main_item in self.tree.get_children():
+            main_values = self.tree.item(main_item)['values']
+            if main_values == values[:-1]:  # Сравниваем без колонки _expiry_info
+                found_item = main_item
+                break
+        
+        if found_item:
+            # Выделяем найденный элемент и прокручиваем к нему
+            self.tree.selection_set(found_item)
+            self.tree.see(found_item)
+            self.tree.focus_set()
+            messagebox.showinfo("Инфо", "Документ найден в основной таблице!")
+        else:
+            messagebox.showwarning("Внимание", "Документ не найден в основной таблице. Возможно, данные были изменены.")
 
     def show_all_documents(self):
         """Возврат к отображению всех документов"""
