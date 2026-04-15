@@ -1167,9 +1167,13 @@ class MaterialApp:
         status_win.grid_rowconfigure(2, weight=1)
         status_win.grid_columnconfigure(0, weight=1)
         
+        # Вертикальный разделитель (PanedWindow) для изменения размера секций
+        paned_window = ttk.PanedWindow(status_win, orient=tk.VERTICAL)
+        paned_window.grid(row=0, column=0, rowspan=3, sticky="nsew", padx=5, pady=5)
+        status_win.grid_rowconfigure(0, weight=1)
+        
         # Верхняя панель с информацией
-        info_frame = tk.Frame(status_win, relief="raised", bd=1, bg="#E3F2FD")
-        info_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        info_frame = tk.Frame(paned_window, relief="raised", bd=1, bg="#E3F2FD")
         info_frame.grid_columnconfigure(0, weight=1)
         
         total = len(self.data)
@@ -1181,9 +1185,17 @@ class MaterialApp:
         tk.Button(info_frame, text="✖️ Закрыть", width=12, height=1, 
                  command=status_win.destroy, bg="#FF5722", fg="white").grid(row=0, column=1, padx=10, pady=5)
         
+        # Добавляем верхнюю панель в разделитель
+        paned_window.add(info_frame, weight=0)
+        
+        # Фрейм для вкладок и таблицы
+        content_frame = tk.Frame(paned_window)
+        content_frame.grid_rowconfigure(1, weight=1)
+        content_frame.grid_columnconfigure(0, weight=1)
+        
         # Вкладки для разных категорий
-        notebook = ttk.Notebook(status_win)
-        notebook.grid(row=1, column=0, sticky="ew", padx=5, pady=5)
+        notebook = ttk.Notebook(content_frame)
+        notebook.grid(row=0, column=0, sticky="ew", padx=0, pady=5)
         
         # Фрейм для просроченных материалов
         expired_frame = tk.Frame(notebook)
@@ -1202,9 +1214,12 @@ class MaterialApp:
         self._create_status_table(valid_frame, valid_items, include_expiry_info=False)
         self._create_status_table(no_shelf_frame, no_shelf_life_items, include_expiry_info=False)
         
+        # Добавляем content_frame в разделитель
+        paned_window.add(content_frame, weight=1)
+        
         # Нижняя панель с кнопками
         bottom_frame = tk.Frame(status_win, relief="sunken", bd=1)
-        bottom_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=5)
+        bottom_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=5)
         
         tk.Button(bottom_frame, text="🔄 Обновить", width=15, 
                  command=lambda: [status_win.destroy(), self.show_materials_status_window()]).grid(row=0, column=0, padx=5, pady=2)
