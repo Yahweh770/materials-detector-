@@ -70,6 +70,14 @@ class MaterialApp:
         edit_menu.add_command(label="Добавить новое поле", command=self.add_new_column)
         edit_menu.add_separator()
         edit_menu.add_command(label="Удалить строку", command=self.delete_row)
+        
+        # Меню "Сервис" для проверки дат и статуса материалов
+        service_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="Сервис", menu=service_menu)
+        service_menu.add_command(label="📊 Статус материалов", command=self.show_materials_status_window)
+        service_menu.add_command(label="⚠️ Просроченные документы", command=self.show_expired_documents)
+        service_menu.add_separator()
+        service_menu.add_command(label="🔄 Обновить данные", command=lambda: [self.refresh_tree(), self.update_expired_info()])
 
         # ==================== ПАНЕЛЬ ИНСТРУМЕНТОВ ====================
         toolbar_frame = tk.Frame(root, relief="raised", bd=1)
@@ -160,9 +168,18 @@ class MaterialApp:
                  bg="#2E7D32", fg="white", font=("Arial", 10, "bold"),
                  command=lambda: self.save_data(show_msg=True)).grid(row=0, column=0, padx=10, sticky="w")
 
-        # Индикатор просроченных документов
+        # Индикатор просроченных документов (кликабельный)
         self.expired_label = tk.Label(bottom_frame, text="", font=("Arial", 10, "bold"), fg="red")
         self.expired_label.grid(row=0, column=1, padx=20, sticky="w")
+        
+        # Добавляем привязку клика на метку для открытия окна статуса материалов
+        self.expired_label.bind("<Button-1>", lambda e: self.show_materials_status_window())
+        self.expired_label.config(cursor="hand2")  # Показываем курсор-руку при наведении
+        
+        # Подсказка для индикатора
+        tooltip_text = "Кликните для просмотра статуса всех материалов"
+        self.expired_label.bind("<Enter>", lambda e: self.expired_label.config(bg="#FFF3E0"))
+        self.expired_label.bind("<Leave>", lambda e: self.expired_label.config(bg="SystemButtonFace"))
 
         tk.Button(bottom_frame, text="⚠️ Просроченные документы", width=25, height=2,
                  bg="#FF5722", fg="white", font=("Arial", 10, "bold"),
@@ -400,6 +417,9 @@ class MaterialApp:
             self.save_data()
             win.destroy()
             messagebox.showinfo("Успешно", "Новый материал добавлен!")
+            
+            # Принудительно обновляем информацию о просроченных документах
+            self.update_expired_info()
 
         # Кнопка сохранения внизу
         button_frame = tk.Frame(win)
@@ -424,6 +444,9 @@ class MaterialApp:
         self.refresh_columns()
         self.refresh_tree()
         messagebox.showinfo("Добавлено", f"Поле «{name}» добавлено во все записи.")
+        
+        # Принудительно обновляем информацию о просроченных документах
+        self.update_expired_info()
 
     # ==================== Остальные методы ====================
     def get_data_file(self):
@@ -492,6 +515,9 @@ class MaterialApp:
                 json.dump(data_to_save, f, ensure_ascii=False, indent=2)
             if show_msg:
                 messagebox.showinfo("Успешно", "Данные успешно сохранены!")
+            
+            # Обновляем информацию о просроченных документах после сохранения
+            self.update_expired_info()
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось сохранить данные: {e}")
 
@@ -503,6 +529,9 @@ class MaterialApp:
         for row in self.data:
             values = [row.get(col, "") for col in self.tree["columns"]]
             self.tree.insert("", "end", values=values)
+        
+        # Обновляем информацию о просроченных документах после обновления дерева
+        self.update_expired_info()
 
     def refresh_columns(self):
         if not self.data:
@@ -523,6 +552,9 @@ class MaterialApp:
             name = russian_names.get(col, col.replace("_", " ").title())
             self.tree.heading(col, text=name)
             self.tree.column(col, width=160, anchor="center")
+        
+        # Обновляем информацию о просроченных документах после обновления колонок
+        self.update_expired_info()
 
     def export_to_excel(self):
         """Экспорт данных в Excel файл с форматированием"""
@@ -652,6 +684,9 @@ class MaterialApp:
             self.refresh_tree()
             self.file_label.config(text=f"Файл: {os.path.basename(self.data_file)}")
             messagebox.showinfo("Успешно", "База данных успешно изменена!")
+            
+            # Принудительно обновляем информацию о просроченных документах
+            self.update_expired_info()
 
     def add_new_row(self):
         """Добавление новой строки через меню"""
@@ -725,6 +760,9 @@ class MaterialApp:
         self.refresh_tree()
         self.save_data()
         messagebox.showinfo("Успешно", "Строка удалена!")
+        
+        # Принудительно обновляем информацию о просроченных документах
+        self.update_expired_info()
 
     def on_double_click(self, event):
         """Обработка двойного клика по строке"""
@@ -865,6 +903,9 @@ class MaterialApp:
             self.save_data()
             win.destroy()
             messagebox.showinfo("Успешно", "Запись обновлена!")
+            
+            # Принудительно обновляем информацию о просроченных документах
+            self.update_expired_info()
         
         # Делаем окно активным и передаем фокус первому полю
         win.focus_set()
@@ -1170,6 +1211,9 @@ class MaterialApp:
         
         tk.Button(bottom_frame, text="📋 Экспорт в Excel", width=20, 
                  command=lambda: self.export_status_to_excel(expired_items, valid_items, no_shelf_life_items)).grid(row=0, column=1, padx=5, pady=2)
+        
+        tk.Button(bottom_frame, text="✖️ Закрыть", width=15, bg="#FF5722", fg="white",
+                 command=status_win.destroy).grid(row=0, column=2, padx=5, pady=2)
     
     def _create_status_table(self, parent, items, include_expiry_info=False):
         """Создание таблицы для отображения статуса материалов"""
@@ -1452,6 +1496,9 @@ class MaterialApp:
         
         tk.Button(bottom_frame, text="📍 Перейти к документу в основной таблице", width=30, 
                  command=lambda: self.navigate_to_item_in_main_tree(expired_tree, expired_win)).grid(row=0, column=1, padx=5, pady=2)
+        
+        tk.Button(bottom_frame, text="✖️ Закрыть", width=15, bg="#FF5722", fg="white",
+                 command=expired_win.destroy).grid(row=0, column=2, padx=5, pady=2)
         
         # Привязка двойного клика для навигации
         expired_tree.bind("<Double-1>", lambda e: self.navigate_to_item_in_main_tree(expired_tree, expired_win))
