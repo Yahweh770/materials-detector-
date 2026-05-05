@@ -84,32 +84,33 @@ class MaterialApp:
         toolbar_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
         toolbar_frame.grid_columnconfigure(13, weight=1)  # Растягиваемый промежуток
 
-        tk.Button(toolbar_frame, text="➕ Добавить материал", width=20, height=2, bg="#4CAF50", fg="white",
-                  font=("Arial", 10, "bold"), command=self.open_add_material_window).grid(row=0, column=0, padx=5, pady=2)
+        # Первая строка кнопок
+        tk.Button(toolbar_frame, text="➕ Добавить материал", width=20, height=1, bg="#4CAF50", fg="white",
+                  font=("Arial", 9, "bold"), command=self.open_add_material_window).grid(row=0, column=0, padx=3, pady=2)
         
-        tk.Button(toolbar_frame, text="✏️ Редактировать", width=18, height=2, bg="#FF9800", fg="white",
-                  command=self.edit_selected_row).grid(row=0, column=1, padx=5, pady=2)
+        tk.Button(toolbar_frame, text="✏️ Редактировать", width=18, height=1, bg="#FF9800", fg="white",
+                  command=self.edit_selected_row).grid(row=0, column=1, padx=3, pady=2)
         
-        tk.Button(toolbar_frame, text="🗑️ Удалить", width=18, height=2, bg="#f44336", fg="white",
-                  command=self.delete_row).grid(row=0, column=2, padx=5, pady=2)
+        tk.Button(toolbar_frame, text="🗑️ Удалить", width=18, height=1, bg="#f44336", fg="white",
+                  command=self.delete_row).grid(row=0, column=2, padx=3, pady=2)
         
-        tk.Button(toolbar_frame, text="📊 Экспорт в Excel", width=18, height=2, bg="#2196F3", fg="white",
-                  command=self.export_to_excel).grid(row=0, column=3, padx=5, pady=2)
+        tk.Button(toolbar_frame, text="📊 Экспорт в Excel", width=18, height=1, bg="#2196F3", fg="white",
+                  command=self.export_to_excel).grid(row=0, column=3, padx=3, pady=2)
         
-        tk.Button(toolbar_frame, text="🔄 Сменить базу", width=18, height=2, bg="#9C27B0", fg="white",
-                  command=self.change_data_file).grid(row=0, column=4, padx=5, pady=2)
+        tk.Button(toolbar_frame, text="🔄 Сменить базу", width=18, height=1, bg="#9C27B0", fg="white",
+                  command=self.change_data_file).grid(row=0, column=4, padx=3, pady=2)
         
-        tk.Button(toolbar_frame, text="⏰ Срок годности", width=18, height=2, bg="#FF5722", fg="white",
-                  command=self.show_materials_status_window).grid(row=0, column=5, padx=5, pady=2)
+        tk.Button(toolbar_frame, text="⏰ Срок годности", width=18, height=1, bg="#FF5722", fg="white",
+                  command=self.show_materials_status_window).grid(row=0, column=5, padx=3, pady=2)
 
         # Поиск
-        tk.Label(toolbar_frame, text="Поиск:", font=("Arial", 10)).grid(row=0, column=6, padx=(20, 5))
+        tk.Label(toolbar_frame, text="Поиск:", font=("Arial", 9)).grid(row=0, column=6, padx=(20, 5))
         self.search_var = tk.StringVar()
         self.search_var.trace('w', lambda *args: self.search_data())
-        self.search_entry = tk.Entry(toolbar_frame, textvariable=self.search_var, width=30, font=("Arial", 10))
+        self.search_entry = tk.Entry(toolbar_frame, textvariable=self.search_var, width=30, font=("Arial", 9))
         self.search_entry.grid(row=0, column=7, padx=5)
         
-        tk.Button(toolbar_frame, text="🔍 Очистить", width=10, command=self.clear_search).grid(row=0, column=8, padx=5)
+        tk.Button(toolbar_frame, text="🔍 Очистить", width=10, height=1, command=self.clear_search).grid(row=0, column=8, padx=5)
         
         # Контекстное меню для Treeview
         self.tree_context_menu = tk.Menu(self.root, tearoff=0)
@@ -164,12 +165,12 @@ class MaterialApp:
         bottom_frame.grid(row=4, column=0, sticky="ew", padx=10, pady=8)
         bottom_frame.grid_columnconfigure(5, weight=1)  # Растягиваемый промежуток
 
-        tk.Button(bottom_frame, text="💾 Сохранить все изменения", width=25, height=2,
-                 bg="#2E7D32", fg="white", font=("Arial", 10, "bold"),
+        tk.Button(bottom_frame, text="💾 Сохранить все изменения", width=25, height=1,
+                 bg="#2E7D32", fg="white", font=("Arial", 9, "bold"),
                  command=lambda: self.save_data(show_msg=True)).grid(row=0, column=0, padx=10, sticky="w")
 
         # Индикатор просроченных документов (кликабельный)
-        self.expired_label = tk.Label(bottom_frame, text="", font=("Arial", 10, "bold"), fg="red")
+        self.expired_label = tk.Label(bottom_frame, text="", font=("Arial", 9, "bold"), fg="red")
         self.expired_label.grid(row=0, column=1, padx=20, sticky="w")
         
         # Добавляем привязку клика на метку для открытия окна статуса материалов
@@ -181,14 +182,14 @@ class MaterialApp:
         self.expired_label.bind("<Enter>", lambda e: self.expired_label.config(bg="#FFF3E0"))
         self.expired_label.bind("<Leave>", lambda e: self.expired_label.config(bg="SystemButtonFace"))
 
-        tk.Button(bottom_frame, text="⚠️ Просроченные документы", width=25, height=2,
-                 bg="#FF5722", fg="white", font=("Arial", 10, "bold"),
+        tk.Button(bottom_frame, text="⚠️ Просроченные документы", width=25, height=1,
+                 bg="#FF5722", fg="white", font=("Arial", 9, "bold"),
                  command=self.show_expired_documents).grid(row=0, column=2, padx=10, sticky="w")
 
-        tk.Button(bottom_frame, text="🔄 Показать все", width=15, height=2,
+        tk.Button(bottom_frame, text="🔄 Показать все", width=15, height=1,
                  command=self.show_all_documents).grid(row=0, column=3, padx=5, sticky="w")
 
-        tk.Button(bottom_frame, text="🚪 Выход", width=15, height=2, bg="#f44336", fg="white",
+        tk.Button(bottom_frame, text="🚪 Выход", width=15, height=1, bg="#f44336", fg="white",
                  command=self.on_close).grid(row=0, column=6, padx=10, sticky="e")
 
         self.refresh_tree()
@@ -309,8 +310,8 @@ class MaterialApp:
     def open_add_material_window(self):
         win = tk.Toplevel(self.root)
         win.title("Добавление нового материала")
-        win.geometry("800x700")
-        win.minsize(600, 500)
+        win.geometry("900x650")
+        win.minsize(700, 500)
         
         # Настройка сетки для окна
         win.grid_rowconfigure(1, weight=1)
@@ -337,8 +338,9 @@ class MaterialApp:
         canvas.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
         
-        # Настройка сетки для scrollable_frame
+        # Настройка сетки для scrollable_frame - ДВЕ КОЛОНКИ ПОЛЕЙ
         scrollable_frame.grid_columnconfigure(1, weight=1)
+        scrollable_frame.grid_columnconfigure(3, weight=1)
 
         fields = [
             ("Производитель *", "manufacturer"),
@@ -357,20 +359,24 @@ class MaterialApp:
         ]
 
         entries = {}
+        # Размещаем поля в две колонки
         for i, (label_text, key) in enumerate(fields):
-            tk.Label(scrollable_frame, text=label_text + ":", font=("Arial", 10)).grid(row=i, column=0, sticky="e", padx=10, pady=6)
+            row = i // 2
+            col = (i % 2) * 2  # 0 или 2
+            tk.Label(scrollable_frame, text=label_text + ":", font=("Arial", 10)).grid(row=row, column=col, sticky="e", padx=10, pady=6)
             entry = tk.Entry(scrollable_frame, font=("Arial", 10))
-            entry.grid(row=i, column=1, padx=10, pady=6, sticky="ew")
+            entry.grid(row=row, column=col+1, padx=10, pady=6, sticky="ew")
             entries[key] = entry
         
         # Чекбокс "Без срока хранения"
         no_shelf_life_var = tk.BooleanVar()
-        tk.Checkbutton(scrollable_frame, text="Без срока хранения (не учитывать при проверке)", 
-                      variable=no_shelf_life_var, font=("Arial", 10)).grid(row=len(fields), column=0, columnspan=2, sticky="w", padx=10, pady=6)
+        checkbox_row = (len(fields) + 1) // 2
+        tk.Checkbutton(scrollable_frame, text="📍 Без срока хранения (не учитывать при проверке)", 
+                      variable=no_shelf_life_var, font=("Arial", 10, "bold")).grid(row=checkbox_row, column=0, columnspan=4, sticky="w", padx=10, pady=10)
 
         # Фрейм для дополнительных полей
         extra_fields_frame = tk.Frame(scrollable_frame)
-        extra_fields_frame.grid(row=len(fields)+1, column=0, columnspan=2, sticky="ew", padx=10, pady=5)
+        extra_fields_frame.grid(row=checkbox_row+1, column=0, columnspan=4, sticky="ew", padx=10, pady=5)
         extra_fields_frame.grid_columnconfigure(1, weight=1)
         
         def add_extra_field():
@@ -385,13 +391,15 @@ class MaterialApp:
                 return
 
             row_idx = len(entries)
-            tk.Label(extra_fields_frame, text=name + ":", font=("Arial", 10)).grid(row=row_idx-len(fields)-1, column=0, sticky="e", padx=10, pady=6)
+            row = row_idx // 2
+            col = (row_idx % 2) * 2
+            tk.Label(extra_fields_frame, text=name + ":", font=("Arial", 10)).grid(row=row, column=col, sticky="e", padx=10, pady=6)
             entry = tk.Entry(extra_fields_frame, font=("Arial", 10))
-            entry.grid(row=row_idx-len(fields)-1, column=1, padx=10, pady=6, sticky="ew")
+            entry.grid(row=row, column=col+1, padx=10, pady=6, sticky="ew")
             entries[key] = entry
 
         tk.Button(scrollable_frame, text="➕ Добавить поле", bg="#FF9800", fg="white",
-                 command=add_extra_field).grid(row=len(fields)+2, column=0, columnspan=2, pady=10)
+                 command=add_extra_field).grid(row=checkbox_row+2, column=0, columnspan=4, pady=10)
 
         def save_material():
             # Проверка заполнения обязательных полей
@@ -797,8 +805,8 @@ class MaterialApp:
         """Редактирование записи"""
         win = tk.Toplevel(self.root)
         win.title("Редактирование материала")
-        win.geometry("800x700")
-        win.minsize(600, 500)
+        win.geometry("900x650")
+        win.minsize(700, 500)
         
         # Настройка сетки для окна - позволяем расширять
         win.grid_rowconfigure(0, weight=1)  # Основной контент расширяется
@@ -825,8 +833,9 @@ class MaterialApp:
         canvas.grid(row=0, column=0, sticky="nsew")
         scrollbar.grid(row=0, column=1, sticky="ns")
         
-        # Настройка сетки для scrollable_frame - колонка с полями расширяется
+        # Настройка сетки для scrollable_frame - ДВЕ КОЛОНКИ ПОЛЕЙ
         scrollable_frame.grid_columnconfigure(1, weight=1)
+        scrollable_frame.grid_columnconfigure(3, weight=1)
 
         fields = [
             ("Производитель", "manufacturer"),
@@ -845,10 +854,13 @@ class MaterialApp:
         ]
 
         entries = {}
+        # Размещаем поля в две колонки
         for i, (label_text, key) in enumerate(fields):
-            tk.Label(scrollable_frame, text=label_text + ":", font=("Arial", 10)).grid(row=i, column=0, sticky="e", padx=10, pady=6)
+            row = i // 2
+            col = (i % 2) * 2  # 0 или 2
+            tk.Label(scrollable_frame, text=label_text + ":", font=("Arial", 10)).grid(row=row, column=col, sticky="e", padx=10, pady=6)
             entry = tk.Entry(scrollable_frame, font=("Arial", 10))
-            entry.grid(row=i, column=1, padx=10, pady=6, sticky="ew")
+            entry.grid(row=row, column=col+1, padx=10, pady=6, sticky="ew")
             entry.insert(0, record.get(key, ""))
             entries[key] = entry
             
@@ -863,16 +875,18 @@ class MaterialApp:
         # Чекбокс "Без срока хранения"
         no_shelf_life_var = tk.BooleanVar()
         no_shelf_life_var.set(record.get('no_shelf_life', 'False') == 'True')
-        tk.Checkbutton(scrollable_frame, text="Без срока хранения (не учитывать при проверке)", 
-                      variable=no_shelf_life_var, font=("Arial", 10)).grid(row=len(fields), column=0, columnspan=2, sticky="w", padx=10, pady=6)
+        checkbox_row = (len(fields) + 1) // 2
+        tk.Checkbutton(scrollable_frame, text="📍 Без срока хранения (не учитывать при проверке)", 
+                      variable=no_shelf_life_var, font=("Arial", 10, "bold")).grid(row=checkbox_row, column=0, columnspan=4, sticky="w", padx=10, pady=10)
 
         # Добавляем дополнительные поля
         extra_fields = [k for k in self.tree["columns"] if k not in [f[1] for f in fields]]
-        for key in extra_fields:
-            i = len(entries)
-            tk.Label(scrollable_frame, text=key.replace("_", " ").title() + ":", font=("Arial", 10)).grid(row=i, column=0, sticky="e", padx=10, pady=6)
+        for idx, key in enumerate(extra_fields):
+            row = checkbox_row + 1 + (idx // 2)
+            col = (idx % 2) * 2
+            tk.Label(scrollable_frame, text=key.replace("_", " ").title() + ":", font=("Arial", 10)).grid(row=row, column=col, sticky="e", padx=10, pady=6)
             entry = tk.Entry(scrollable_frame, font=("Arial", 10))
-            entry.grid(row=i, column=1, padx=10, pady=6, sticky="ew")
+            entry.grid(row=row, column=col+1, padx=10, pady=6, sticky="ew")
             entry.insert(0, record.get(key, ""))
             entries[key] = entry
             
