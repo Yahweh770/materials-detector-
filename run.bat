@@ -4,6 +4,7 @@ title Учёт материалов
 
 :: ========================================================
 ::     УЧЁТ МАТЕРИАЛОВ — ЕДИНАЯ БАЗА
+::     Автоматическая установка зависимостей
 :: ========================================================
 
 echo.
@@ -21,26 +22,74 @@ echo.
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [ОШИБКА] Python не найден!
-    echo Установите Python и добавьте его в PATH.
+    echo Пожалуйста, установите Python с https://www.python.org/downloads/
+    echo При установке отметьте галочку "Add Python to PATH"
     pause
-    exit
+    exit /b 1
 )
 
 echo ✓ Python обнаружен
+python --version
 echo.
 
-:: Автоматическое обновление библиотек
-echo Обновляем необходимые библиотеки...
+:: Создание виртуального окружения (если не существует)
+if not exist "venv" (
+    echo Создаём виртуальное окружение...
+    python -m venv venv
+    if errorlevel 1 (
+        echo [ОШИБКА] Не удалось создать виртуальное окружение!
+        pause
+        exit /b 1
+    )
+    echo ✓ Виртуальное окружение создано
+) else (
+    echo ✓ Виртуальное окружение уже существует
+)
+echo.
+
+:: Активация виртуального окружения
+echo Активируем виртуальное окружение...
+call venv\Scripts\activate.bat
+if errorlevel 1 (
+    echo [ОШИБКА] Не удалось активировать виртуальное окружение!
+    pause
+    exit /b 1
+)
+echo ✓ Виртуальное окружение активировано
+echo.
+
+:: Обновление pip
+echo Обновляем pip...
 python -m pip install --upgrade pip --quiet
-python -m pip install pandas openpyxl --quiet --upgrade
-
-echo ✓ Библиотеки обновлены
+echo ✓ pip обновлён
 echo.
+
+:: Установка зависимостей из requirements.txt
+echo Устанавливаем необходимые библиотеки...
+python -m pip install -r requirements.txt --quiet
+if errorlevel 1 (
+    echo [ОШИБКА] Не удалось установить зависимости!
+    echo Пробуем установить по отдельности...
+    python -m pip install pandas --quiet
+    python -m pip install openpyxl --quiet
+)
+echo.
+echo ✓ Все зависимости установлены
+echo.
+
 echo Запускаем программу "Учёт материалов"...
 echo.
 
 :: Запуск программы
 python materials.py
+
+if errorlevel 1 (
+    echo.
+    echo [ОШИБКА] Программа завершилась с ошибкой!
+    echo.
+    pause
+    exit /b 1
+)
 
 echo.
 echo ========================================================
