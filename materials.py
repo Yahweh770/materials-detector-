@@ -125,25 +125,78 @@ class MaterialApp:
         self.file_label.grid(row=0, column=12, padx=15, sticky="e")
 
         # ==================== ТАБЛИЦА ====================
-        # Фрейм для таблицы с прокруткой
-        tree_frame = tk.Frame(root)
-        tree_frame.grid(row=3, column=0, sticky="nsew", padx=10, pady=5)
-        tree_frame.grid_rowconfigure(0, weight=1)
-        tree_frame.grid_columnconfigure(0, weight=1)
+        # Создаем горизонтальный разделитель (PanedWindow) для основной таблицы и правой панели
+        self.main_paned = ttk.PanedWindow(root, orient=tk.HORIZONTAL)
+        self.main_paned.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
+        root.grid_rowconfigure(3, weight=1)
         
-        self.tree = ttk.Treeview(tree_frame, show="headings")
+        # Фрейм для основной таблицы
+        tree_frame_container = tk.Frame(self.main_paned)
+        tree_frame_container.grid_rowconfigure(0, weight=1)
+        tree_frame_container.grid_columnconfigure(0, weight=1)
+        
+        self.tree = ttk.Treeview(tree_frame_container, show="headings")
         
         # Вертикальная прокрутка
-        y_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        y_scrollbar = ttk.Scrollbar(tree_frame_container, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=y_scrollbar.set)
         
         # Горизонтальная прокрутка
-        x_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        x_scrollbar = ttk.Scrollbar(tree_frame_container, orient="horizontal", command=self.tree.xview)
         self.tree.configure(xscrollcommand=x_scrollbar.set)
 
         self.tree.grid(row=0, column=0, sticky="nsew")
         y_scrollbar.grid(row=0, column=1, sticky="ns")
         x_scrollbar.grid(row=1, column=0, sticky="ew")
+        
+        self.main_paned.add(tree_frame_container, weight=3)  # Основная таблица занимает больше места
+        
+        # Правая панель с просроченными документами
+        self.expired_panel_frame = tk.Frame(self.main_paned, relief="sunken", bd=1, bg="#FFF3E0")
+        self.expired_panel_frame.grid_rowconfigure(1, weight=1)
+        self.expired_panel_frame.grid_columnconfigure(0, weight=1)
+        
+        # Заголовок правой панели
+        expired_header = tk.Frame(self.expired_panel_frame, bg="#FF9800")
+        expired_header.grid(row=0, column=0, sticky="ew")
+        tk.Label(expired_header, text="⚠️ Просроченные/истекающие", 
+                font=("Arial", 10, "bold"), bg="#FF9800", fg="white").pack(pady=3)
+        
+        # Кнопка закрытия/сворачивания панели
+        self.panel_toggle_btn = tk.Button(expired_header, text="✖", width=2, height=1,
+                                          command=self.toggle_expired_panel, bg="#FF5722", fg="white")
+        self.panel_toggle_btn.pack(side=tk.RIGHT, padx=2)
+        
+        # Контейнер для таблицы просроченных документов
+        expired_tree_frame = tk.Frame(self.expired_panel_frame)
+        expired_tree_frame.grid(row=1, column=0, sticky="nsew")
+        expired_tree_frame.grid_rowconfigure(0, weight=1)
+        expired_tree_frame.grid_columnconfigure(0, weight=1)
+        
+        self.expired_tree = ttk.Treeview(expired_tree_frame, show="headings", height=8)
+        expired_y_scroll = ttk.Scrollbar(expired_tree_frame, orient="vertical", command=self.expired_tree.yview)
+        self.expired_tree.configure(yscrollcommand=expired_y_scroll.set)
+        self.expired_tree.grid(row=0, column=0, sticky="nsew")
+        expired_y_scroll.grid(row=0, column=1, sticky="ns")
+        
+        # Настройка колонок для просроченных документов
+        self.expired_tree["columns"] = ("material", "cert_num", "exp_date", "days_left")
+        self.expired_tree.heading("material", text="Материал")
+        self.expired_tree.column("material", width=150, anchor='w')
+        self.expired_tree.heading("cert_num", text="Сертификат №")
+        self.expired_tree.column("cert_num", width=100, anchor='w')
+        self.expired_tree.heading("exp_date", text="Дата окончания")
+        self.expired_tree.column("exp_date", width=90, anchor='center')
+        self.expired_tree.heading("days_left", text="Дней")
+        self.expired_tree.column("days_left", width=50, anchor='center')
+        
+        # Привязка двойного клика для перехода к документу
+        self.expired_tree.bind("<Double-1>", self.on_expired_item_double_click)
+        
+        self.main_paned.add(self.expired_panel_frame, weight=1)  # Правая панель меньше
+        
+        # Инициализация состояния панели
+        self._panel_visible = True
         
         self.refresh_columns()
 
@@ -534,9 +587,85 @@ class MaterialApp:
         for item in self.tree.get_children():
             self.tree.delete(item)
         
+        # Очищаем правую панель
+        for item in self.expired_tree.get_children():
+            self.expired_tree.delete(item)
+        
+        expired_items = []
+        
         for row in self.data:
             values = [row.get(col, "") for col in self.tree["columns"]]
             self.tree.insert("", "end", values=values)
+            
+            # Проверяем, не просрочен ли документ
+            is_expired = False
+            is_expiring_soon = False
+            expiry_info = []
+            days_left_min = 9999
+            
+            # Проверяем дату окончания сертификата
+            cert_exp_date = row.get('cert_exp_date', '').strip()
+            if cert_exp_date:
+                try:
+                    exp_date = datetime.strptime(cert_exp_date, '%d.%m.%Y').date()
+                    days_left = (exp_date - self.today).days
+                    if days_left < 0:
+                        is_expired = True
+                        expiry_info.append(f"Сертификат: {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        expiry_info.append(f"Сертификат: {days_left} дн.")
+                    if days_left < days_left_min:
+                        days_left_min = days_left
+                except ValueError:
+                    pass
+            
+            # Проверяем дату протокола
+            protocol_date = row.get('lab_protocol_date', '').strip()
+            if protocol_date:
+                try:
+                    prot_date = datetime.strptime(protocol_date, '%d.%m.%Y').date()
+                    exp_date = prot_date + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    if days_left < 0:
+                        is_expired = True
+                        expiry_info.append(f"Протокол: {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        expiry_info.append(f"Протокол: {days_left} дн.")
+                    if days_left < days_left_min:
+                        days_left_min = days_left
+                except ValueError:
+                    pass
+            
+            # Проверяем дату акта отбора
+            act_date = row.get('sample_act_date', '').strip()
+            if act_date:
+                try:
+                    act_dt = datetime.strptime(act_date, '%d.%m.%Y').date()
+                    exp_date = act_dt + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    if days_left < 0:
+                        is_expired = True
+                        expiry_info.append(f"Акт: {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        expiry_info.append(f"Акт: {days_left} дн.")
+                    if days_left < days_left_min:
+                        days_left_min = days_left
+                except ValueError:
+                    pass
+            
+            # Добавляем в правую панель если просрочен или истекает
+            if is_expired or is_expiring_soon:
+                material = row.get('manufacturer', '')[:30]
+                cert_num = row.get('cert_num', '')[:15]
+                exp_date_str = cert_exp_date if cert_exp_date else 'Н/Д'
+                expired_items.append((material, cert_num, exp_date_str, str(days_left_min)))
+        
+        # Заполняем правую панель
+        for item_data in expired_items:
+            self.expired_tree.insert("", "end", values=item_data)
         
         # Обновляем информацию о просроченных документах после обновления дерева
         self.update_expired_info()
@@ -1605,6 +1734,202 @@ class MaterialApp:
     def on_close(self):
         self.save_data()
         self.root.destroy()
+
+    def toggle_expired_panel(self):
+        """Сворачивание/разворачивание правой панели с просроченными документами"""
+        if hasattr(self, '_panel_visible') and not self._panel_visible:
+            # Показываем панель
+            try:
+                self.main_paned.add(self.expired_panel_frame, weight=1)
+                self.panel_toggle_btn.config(text="✖")
+                self._panel_visible = True
+            except:
+                pass
+        else:
+            # Скрываем панель
+            try:
+                self.main_paned.forget(self.expired_panel_frame)
+                self.panel_toggle_btn.config(text="▶")
+                self._panel_visible = False
+            except:
+                pass
+
+    def on_expired_item_double_click(self, event):
+        """Обработка двойного клика по элементу в правой панели"""
+        selection = self.expired_tree.selection()
+        if not selection:
+            return
+        
+        item = self.expired_tree.item(selection[0])
+        values = item['values']
+        
+        if len(values) < 2:
+            return
+        
+        cert_num = values[1]  # Сертификат №
+        material_name = values[0]  # Материал
+        
+        # Ищем соответствующий элемент в основной таблице
+        for main_item in self.tree.get_children():
+            main_values = self.tree.item(main_item)['values']
+            # Сравниваем по номеру сертификата или названию материала
+            if (len(main_values) >= 2 and 
+                (str(main_values[1]) == str(cert_num) or str(main_values[0]).startswith(str(material_name)))):
+                self.tree.selection_set(main_item)
+                self.tree.see(main_item)
+                self.tree.focus_set()
+                break
+
+    def show_expired_documents(self):
+        """Отображение только просроченных и истекающих документов в отдельном окне с изменяемым размером"""
+        expired_items = []
+        
+        for item in self.data:
+            is_expired = False
+            is_expiring_soon = False
+            expiry_info = []
+            
+            # Проверяем дату окончания сертификата
+            cert_exp_date = item.get('cert_exp_date', '').strip()
+            if cert_exp_date:
+                try:
+                    exp_date = datetime.strptime(cert_exp_date, '%d.%m.%Y').date()
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        is_expired = True
+                        expiry_info.append(f"Сертификат просрочен на {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        expiry_info.append(f"Сертификат истекает через {days_left} дн.")
+                except ValueError:
+                    pass
+            
+            # Проверяем дату протокола
+            protocol_date = item.get('lab_protocol_date', '').strip()
+            if protocol_date:
+                try:
+                    prot_date = datetime.strptime(protocol_date, '%d.%m.%Y').date()
+                    exp_date = prot_date + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        is_expired = True
+                        expiry_info.append(f"Протокол просрочен на {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        expiry_info.append(f"Протокол истекает через {days_left} дн.")
+                except ValueError:
+                    pass
+            
+            # Проверяем дату акта отбора
+            act_date = item.get('sample_act_date', '').strip()
+            if act_date:
+                try:
+                    act_dt = datetime.strptime(act_date, '%d.%m.%Y').date()
+                    exp_date = act_dt + timedelta(days=365)
+                    days_left = (exp_date - self.today).days
+                    
+                    if days_left < 0:
+                        is_expired = True
+                        expiry_info.append(f"Акт просрочен на {-days_left} дн.")
+                    elif days_left <= 30:
+                        is_expiring_soon = True
+                        expiry_info.append(f"Акт истекает через {days_left} дн.")
+                except ValueError:
+                    pass
+            
+            if is_expired or is_expiring_soon:
+                item_copy = item.copy()
+                item_copy['_expiry_info'] = '; '.join(expiry_info)
+                expired_items.append(item_copy)
+        
+        if not expired_items:
+            messagebox.showinfo("Инфо", "Нет просроченных или истекающих документов!")
+            return
+        
+        # Создаем отдельное окно для просроченных документов
+        expired_win = tk.Toplevel(self.root)
+        expired_win.title("⚠️ Просроченные документы")
+        expired_win.geometry("1200x700")
+        expired_win.minsize(800, 400)
+        
+        # Настройка сетки для окна
+        expired_win.grid_rowconfigure(1, weight=1)
+        expired_win.grid_columnconfigure(0, weight=1)
+        
+        # Верхняя панель с информацией
+        info_frame = tk.Frame(expired_win, relief="raised", bd=1, bg="#FFF3E0")
+        info_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
+        info_frame.grid_columnconfigure(0, weight=1)
+        
+        tk.Label(info_frame, text=f"📊 Найдено просроченных/истекающих документов: {len(expired_items)}", 
+                font=("Arial", 11, "bold"), bg="#FFF3E0", fg="#E65100").grid(row=0, column=0, padx=10, pady=5, sticky="w")
+        
+        # Кнопка закрытия окна
+        tk.Button(info_frame, text="✖️ Закрыть", width=12, height=1, 
+                 command=expired_win.destroy, bg="#FF5722", fg="white").grid(row=0, column=1, padx=10, pady=5)
+        
+        # Фрейм для таблицы с прокруткой
+        tree_frame = tk.Frame(expired_win)
+        tree_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+        tree_frame.grid_rowconfigure(0, weight=1)
+        tree_frame.grid_columnconfigure(0, weight=1)
+        
+        # Создаем Treeview для отображения просроченных документов
+        expired_tree = ttk.Treeview(tree_frame, show="headings")
+        
+        # Вертикальная прокрутка
+        y_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=expired_tree.yview)
+        expired_tree.configure(yscrollcommand=y_scrollbar.set)
+        
+        # Горизонтальная прокрутка
+        x_scrollbar = ttk.Scrollbar(tree_frame, orient="horizontal", command=expired_tree.xview)
+        expired_tree.configure(xscrollcommand=x_scrollbar.set)
+        
+        expired_tree.grid(row=0, column=0, sticky="nsew")
+        y_scrollbar.grid(row=0, column=1, sticky="ns")
+        x_scrollbar.grid(row=1, column=0, sticky="ew")
+        
+        # Настраиваем колонки
+        cols = list(self.tree["columns"]) + ['_expiry_info']
+        expired_tree["columns"] = cols
+        
+        # Копируем заголовки из основного дерева
+        for col in cols:
+            if col == '_expiry_info':
+                expired_tree.heading(col, text='⚠️ Информация о сроках')
+                expired_tree.column(col, width=300, anchor='w')
+            else:
+                # Получаем заголовок из основного дерева
+                try:
+                    heading = self.tree.heading(col)['text']
+                    expired_tree.heading(col, text=heading)
+                    expired_tree.column(col, width=self.tree.column(col)['width'], anchor=self.tree.column(col)['anchor'])
+                except:
+                    expired_tree.heading(col, text=col)
+                    expired_tree.column(col, width=100, anchor='w')
+        
+        # Заполняем данными
+        for item in expired_items:
+            values = [item.get(col, "") for col in cols]
+            expired_tree.insert("", "end", values=values)
+        
+        # Нижняя панель с кнопками
+        bottom_frame = tk.Frame(expired_win, relief="sunken", bd=1)
+        bottom_frame.grid(row=2, column=0, sticky="ew", padx=10, pady=5)
+        
+        tk.Button(bottom_frame, text="📋 Копировать выбранное", width=20, 
+                 command=lambda: self.copy_from_expired_tree(expired_tree)).grid(row=0, column=0, padx=5, pady=2)
+        
+        tk.Button(bottom_frame, text="📍 Перейти к документу в основной таблице", width=30, 
+                 command=lambda: self.navigate_to_item_in_main_tree(expired_tree, expired_win)).grid(row=0, column=1, padx=5, pady=2)
+        
+        tk.Button(bottom_frame, text="✖️ Закрыть", width=15, bg="#FF5722", fg="white",
+                 command=expired_win.destroy).grid(row=0, column=2, padx=5, pady=2)
+        
+        # Привязка двойного клика для навигации
+        expired_tree.bind("<Double-1>", lambda e: self.navigate_to_item_in_main_tree(expired_tree, expired_win))
 
 
 if __name__ == "__main__":
