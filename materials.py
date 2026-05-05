@@ -82,7 +82,7 @@ class MaterialApp:
         # ==================== ПАНЕЛЬ ИНСТРУМЕНТОВ ====================
         toolbar_frame = tk.Frame(root, relief="raised", bd=1)
         toolbar_frame.grid(row=0, column=0, sticky="ew", padx=5, pady=5)
-        toolbar_frame.grid_columnconfigure(13, weight=1)  # Растягиваемый промежуток
+        toolbar_frame.grid_columnconfigure(14, weight=1)  # Растягиваемый промежуток
 
         # Первая строка кнопок
         tk.Button(toolbar_frame, text="➕ Добавить материал", width=20, height=1, bg="#4CAF50", fg="white",
@@ -102,9 +102,12 @@ class MaterialApp:
         
         tk.Button(toolbar_frame, text="⏰ Срок годности", width=18, height=1, bg="#FF5722", fg="white",
                   command=self.show_materials_status_window).grid(row=0, column=5, padx=3, pady=2)
+        
+        tk.Button(toolbar_frame, text="⚠️ Просроченные документы", width=22, height=1, bg="#E65100", fg="white",
+                  font=("Arial", 9, "bold"), command=self.show_expired_documents).grid(row=0, column=6, padx=3, pady=2)
 
         # Поиск
-        tk.Label(toolbar_frame, text="Поиск:", font=("Arial", 9)).grid(row=0, column=6, padx=(20, 5))
+        tk.Label(toolbar_frame, text="Поиск:", font=("Arial", 9)).grid(row=0, column=7, padx=(20, 5))
         self.search_var = tk.StringVar()
         self.search_var.trace('w', lambda *args: self.search_data())
         self.search_entry = tk.Entry(toolbar_frame, textvariable=self.search_var, width=30, font=("Arial", 9))
@@ -122,7 +125,7 @@ class MaterialApp:
 
         self.file_label = tk.Label(toolbar_frame, text=f"Файл: {os.path.basename(self.data_file)}", 
                                   font=("Arial", 10, "bold"), fg="blue")
-        self.file_label.grid(row=0, column=12, padx=15, sticky="e")
+        self.file_label.grid(row=0, column=13, padx=15, sticky="e")
 
         # ==================== ТАБЛИЦА ====================
         # Создаем горизонтальный разделитель (PanedWindow) для основной таблицы и правой панели
